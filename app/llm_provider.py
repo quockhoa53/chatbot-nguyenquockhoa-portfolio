@@ -85,24 +85,32 @@ class LLMProvider:
             except Exception as e:
                 logger.error(f"Gemini generation error: {e}")
 
-        # 3. Try Groq
+        # 3. Try Groq with multi-model fallback
         if self.groq_client:
-            try:
-                groq_messages = [{"role": "system", "content": system_instruction}]
-                for m in messages[:-1]:
-                    role = "user" if m.get("role") == "user" else "assistant"
-                    groq_messages.append({"role": role, "content": m.get("content", "")})
-                groq_messages.append({"role": "user", "content": last_user_query})
+            models_to_try = list(dict.fromkeys([
+                self.groq_model_name,
+                "openai/gpt-oss-20b",
+                "openai/gpt-oss-120b",
+                "qwen/qwen3.6-27b",
+            ]))
+            groq_messages = [{"role": "system", "content": system_instruction}]
+            for m in messages[:-1]:
+                role = "user" if m.get("role") == "user" else "assistant"
+                groq_messages.append({"role": role, "content": m.get("content", "")})
+            groq_messages.append({"role": "user", "content": last_user_query})
 
-                res = self.groq_client.chat.completions.create(
-                    model=self.groq_model_name,
-                    messages=groq_messages,
-                    temperature=0.7,
-                    max_tokens=1200,
-                )
-                return sanitize_text(res.choices[0].message.content)
-            except Exception as e:
-                logger.error(f"Groq generation error: {e}")
+            for model_name in models_to_try:
+                try:
+                    res = self.groq_client.chat.completions.create(
+                        model=model_name,
+                        messages=groq_messages,
+                        temperature=0.7,
+                        max_tokens=1500,
+                    )
+                    return sanitize_text(res.choices[0].message.content)
+                except Exception as e:
+                    logger.warning(f"Groq model {model_name} failed: {e}. Trying fallback...")
+                    continue
 
         # If no key configured, generate a polite guidance response explaining how to configure Gemini API Key
         return (
@@ -148,27 +156,35 @@ class LLMProvider:
 
         # 2. Stream with Groq
         if self.groq_client:
-            try:
-                groq_messages = [{"role": "system", "content": system_instruction}]
-                for m in messages[:-1]:
-                    role = "user" if m.get("role") == "user" else "assistant"
-                    groq_messages.append({"role": role, "content": m.get("content", "")})
-                groq_messages.append({"role": "user", "content": last_user_query})
+            models_to_try = list(dict.fromkeys([
+                self.groq_model_name,
+                "openai/gpt-oss-20b",
+                "openai/gpt-oss-120b",
+                "qwen/qwen3.6-27b",
+            ]))
+            groq_messages = [{"role": "system", "content": system_instruction}]
+            for m in messages[:-1]:
+                role = "user" if m.get("role") == "user" else "assistant"
+                groq_messages.append({"role": role, "content": m.get("content", "")})
+            groq_messages.append({"role": "user", "content": last_user_query})
 
-                response = self.groq_client.chat.completions.create(
-                    model=self.groq_model_name,
-                    messages=groq_messages,
-                    temperature=0.7,
-                    max_tokens=1200,
-                    stream=True,
-                )
-                for chunk in response:
-                    delta = chunk.choices[0].delta.content
-                    if delta:
-                        yield sanitize_text(delta)
-                return
-            except Exception as e:
-                logger.error(f"Groq streaming error: {e}")
+            for model_name in models_to_try:
+                try:
+                    response = self.groq_client.chat.completions.create(
+                        model=model_name,
+                        messages=groq_messages,
+                        temperature=0.7,
+                        max_tokens=1500,
+                        stream=True,
+                    )
+                    for chunk in response:
+                        delta = chunk.choices[0].delta.content
+                        if delta:
+                            yield sanitize_text(delta)
+                    return
+                except Exception as e:
+                    logger.warning(f"Groq stream model {model_name} failed: {e}. Trying fallback...")
+                    continue
 
         # Fallback text
         reply = self.generate_response(messages, user_style_key)
