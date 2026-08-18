@@ -1,0 +1,16 @@
+# Environments & Secrets
+.env
+venv/
+ENV/
+env/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
