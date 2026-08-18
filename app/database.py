@@ -279,25 +279,26 @@ def fetch_from_rest_api() -> Dict[str, Any]:
 
 
 def get_live_portfolio_data(force_refresh: bool = False) -> Dict[str, Any]:
-    """Returns cached portfolio knowledge with TTL expiration."""
+    """Returns cached portfolio knowledge with TTL expiration, never serving empty projects."""
     global _KNOWLEDGE_CACHE, _KNOWLEDGE_TIMESTAMP
 
     now = time.time()
     ttl_seconds = settings.KNOWLEDGE_CACHE_TTL_MINUTES * 60
     if not force_refresh and _KNOWLEDGE_CACHE and (now - _KNOWLEDGE_TIMESTAMP < ttl_seconds):
-        return _KNOWLEDGE_CACHE
+        if _KNOWLEDGE_CACHE.get("projects") and len(_KNOWLEDGE_CACHE.get("projects", [])) > 0:
+            return _KNOWLEDGE_CACHE
 
     data = fetch_from_postgres()
-    if not data or (not data.get("projects") and not data.get("profile")):
+    if not data or not data.get("projects") or len(data.get("projects", [])) == 0:
         rest_data = fetch_from_rest_api()
-        if rest_data and (rest_data.get("projects") or rest_data.get("profile")):
+        if rest_data and rest_data.get("projects") and len(rest_data.get("projects", [])) > 0:
             data = rest_data
 
-    if data:
+    if data and data.get("projects") and len(data.get("projects", [])) > 0:
         _KNOWLEDGE_CACHE = data
         _KNOWLEDGE_TIMESTAMP = now
 
-    return _KNOWLEDGE_CACHE or {
+    return data or _KNOWLEDGE_CACHE or {
         "profile": {},
         "projects": [],
         "skills": [],
