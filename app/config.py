@@ -16,11 +16,11 @@ class Settings:
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip()
 
     # Database Settings (Safe public access only)
-    DB_HOST: str = os.getenv("DB_HOST", "localhost").strip()
+    DB_HOST: str = os.getenv("DB_HOST", "ep-gentle-dew-axryx2mu-pooler.c-4.us-east-2.aws.neon.tech").strip()
     DB_PORT: int = int(os.getenv("DB_PORT", "5432"))
-    DB_NAME: str = os.getenv("DB_NAME", "portfolio").strip()
-    DB_USER: str = os.getenv("DB_USER", "postgres").strip()
-    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "1234").strip()
+    DB_NAME: str = os.getenv("DB_NAME", "neondb").strip()
+    DB_USER: str = os.getenv("DB_USER", "neondb_owner").strip()
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "npg_4LRx7pFVeDnr").strip()
     PORTFOLIO_BE_URL: str = os.getenv(
         "PORTFOLIO_BE_URL", "https://nguyenquockhoa.onrender.com/api/v1"
     ).strip()

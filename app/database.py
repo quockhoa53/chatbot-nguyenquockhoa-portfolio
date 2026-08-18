@@ -179,7 +179,7 @@ def fetch_from_rest_api() -> Dict[str, Any]:
 
     # 1. Profile
     try:
-        res = requests.get(f"{base_url}/profile", timeout=5)
+        res = requests.get(f"{base_url}/profile", timeout=30)
         if res.status_code == 200:
             payload = res.json()
             p = payload.get("data", payload)
@@ -187,16 +187,16 @@ def fetch_from_rest_api() -> Dict[str, Any]:
                 bio = p.get("bio", "")
                 result["profile"] = {
                     "id": p.get("id"),
-                    "full_name": p.get("fullName") or p.get("full_name"),
-                    "headline": p.get("headline"),
+                    "full_name": p.get("fullName") or p.get("full_name") or "Nguyễn Quốc Khoa",
+                    "headline": p.get("headline") or "Full-stack Developer",
                     "short_bio": p.get("shortBio") or p.get("short_bio"),
                     "bio_plain": strip_html_tags(bio),
-                    "email": p.get("email"),
-                    "phone": p.get("phone"),
-                    "location": p.get("location"),
+                    "email": p.get("email") or "nguyenquockhoa5549@gmail.com",
+                    "phone": p.get("phone") or "0969895549",
+                    "location": p.get("location") or "Việt Nam",
                     "avatar_url": p.get("avatarUrl") or p.get("avatar_url"),
-                    "github_url": p.get("githubUrl") or p.get("github_url"),
-                    "linkedin_url": p.get("linkedinUrl") or p.get("linkedin_url"),
+                    "github_url": p.get("githubUrl") or p.get("github_url") or "https://github.com/quockhoa53",
+                    "linkedin_url": p.get("linkedinUrl") or p.get("linkedin_url") or "https://www.linkedin.com/in/quockhoa",
                     "facebook_url": p.get("facebookUrl") or p.get("facebook_url"),
                 }
     except Exception as e:
@@ -204,7 +204,7 @@ def fetch_from_rest_api() -> Dict[str, Any]:
 
     # 2. Projects
     try:
-        res = requests.get(f"{base_url}/projects", timeout=5)
+        res = requests.get(f"{base_url}/projects", timeout=30)
         if res.status_code == 200:
             payload = res.json()
             raw_projects = payload.get("data", payload)
@@ -229,7 +229,7 @@ def fetch_from_rest_api() -> Dict[str, Any]:
 
     # 3. Skills
     try:
-        res = requests.get(f"{base_url}/skills", timeout=5)
+        res = requests.get(f"{base_url}/skills", timeout=30)
         if res.status_code == 200:
             payload = res.json()
             raw_skills = payload.get("data", payload)
@@ -240,7 +240,7 @@ def fetch_from_rest_api() -> Dict[str, Any]:
 
     # 4. Knowledge Articles
     try:
-        res = requests.get(f"{base_url}/knowledge/articles", timeout=5)
+        res = requests.get(f"{base_url}/knowledge/articles", timeout=30)
         if res.status_code == 200:
             payload = res.json()
             raw_articles = payload.get("data", payload)
@@ -262,7 +262,7 @@ def fetch_from_rest_api() -> Dict[str, Any]:
 
     # 5. Work Items
     try:
-        res = requests.get(f"{base_url}/work-items", timeout=5)
+        res = requests.get(f"{base_url}/work-items", timeout=30)
         if res.status_code == 200:
             payload = res.json()
             raw_work = payload.get("data", payload)
@@ -289,8 +289,92 @@ def fetch_from_rest_api() -> Dict[str, Any]:
     return result
 
 
+FALLBACK_PORTFOLIO_DATA: Dict[str, Any] = {
+    "profile": {
+        "id": 1,
+        "full_name": "Nguyễn Quốc Khoa",
+        "headline": "Full-stack Developer & Backend AI Engineer",
+        "short_bio": "Software Engineer đam mê xây dựng hệ thống Backend quy mô lớn, Clean Architecture, DDD, Microservices và tích hợp AI/LLMs.",
+        "bio_plain": "Nguyễn Quốc Khoa – Software Engineer đam mê xây dựng hệ thống Backend quy mô lớn, Clean Architecture, DDD, Microservices và tích hợp AI/LLMs.",
+        "email": "nguyenquockhoa5549@gmail.com",
+        "phone": "0969895549",
+        "location": "Việt Nam",
+        "avatar_url": "",
+        "github_url": "https://github.com/quockhoa53",
+        "linkedin_url": "https://www.linkedin.com/in/quockhoa",
+        "facebook_url": "",
+    },
+    "projects": [
+        {
+            "id": 1,
+            "title": "Hệ thống đặt vé xem phim có tích hợp ChatBot hỗ trợ khách hàng",
+            "technologies": "Java, Spring Boot, SQL Server, Python, ChatBot AI, HTML, CSS, JavaScript",
+            "featured": True,
+            "summary": "Hệ thống đặt vé xem phim trực tuyến tích hợp ChatBot AI hỗ trợ đặt vé, đề xuất phim và giải đáp thắc mắc 24/7.",
+            "description_plain": (
+                "I. TỔNG QUAN\n"
+                "Dự án nhóm: 3 người\n"
+                "Hệ thống đặt vé: Frontend: HTML, CSS, JavaScript. Backend: Java, Spring Boot. Cơ sở dữ liệu: SQL Server.\n"
+                "Hệ thống ChatBot: Python.\n\n"
+                "CÁC TÍNH NĂNG CHÍNH CỦA HỆ THỐNG:\n"
+                "1. Phần Chatbot:\n"
+                "- Sử dụng Deep Learning với Neural Network 3 lớp để nhận dạng văn bản và sử dụng nltk để xử lý ngôn ngữ tự nhiên.\n"
+                "- Sử dụng Content-Based Filtering (CBF) kết hợp với Time-Based Analysis để đề xuất phim dựa trên thể loại yêu thích, nội dung phim và thời gian xem phim phổ biến của người dùng.\n"
+                "- Sử dụng 3 phương pháp chính (TF-IDF, Word2Vec, và Bag of Words) để phân tích nội dung phim dựa trên mô tả và thể loại, nhằm tính toán độ tương đồng giữa các phim và đưa ra gợi ý phim phù hợp.\n\n"
+                "2. Ngữ cảnh hoạt động của Chatbot:\n"
+                "- Ngữ cảnh chào hỏi, tạm biệt.\n"
+                "- Ngữ cảnh đặt vé.\n"
+                "- Ngữ cảnh đề xuất phim: Đề xuất dựa trên tất cả vé người dùng đã đặt để biết thể loại và khung giờ yêu thích. "
+                "Có đăng nhập: đề xuất theo sở thích + độ phổ biến của phim (số lượng vé đặt nhiều tỉ lệ 0.7, đánh giá khách hàng tốt tỉ lệ 0.3). "
+                "Không đăng nhập: đề xuất theo độ phổ biến (vé đặt nhiều tỉ lệ 0.7, đánh giá tỉ lệ 0.3).\n"
+                "- 2 dạng đề xuất: (1) Theo câu lệnh người dùng nhập (ví dụ: 'Suggest a movie that you think I\\'ll like') và (2) Đề xuất tự động qua các nút kêu gọi ('You might love my suggest', 'Booking ticket Smile', 'Suggest a movie').\n"
+                "- Ngữ cảnh đề xuất phim tương tự: Dựa trên tên phim, nội dung, thể loại phim.\n\n"
+                "3. Phần Hệ Thống Đặt Vé (Khách Hàng):\n"
+                "- Đăng nhập, Đăng ký.\n"
+                "- Trang chủ: 3 Banner phim hot (vé bán + đánh giá), 6 phim mới nhất, sự kiện rạp, danh mục Đang chiếu & Sắp chiếu (4 phim/mục, nút View All), Top 1 phòng vé (video youtube + đánh giá 2-5 sao), Danh sách 6 đạo diễn doanh thu cao nhất.\n"
+                "- Danh sách suất chiếu: 7 ngày theo thời gian thực (suất đã qua tự ẩn).\n"
+                "- Chọn ghế: 3 loại ghế (Ghế thường: 45.000đ, Ghế VIP: 50.000đ, Ghế đôi: 100.000đ). 3 trạng thái ghế (Trống - xanh lá, Đã đặt - đỏ, Đang chọn - xám).\n"
+                "- Giữ ghế: Giữ ghế trong 5 phút, hết 5 phút tự động hủy, có nút Cancel Booking.\n"
+                "- Đánh giá phim (1-5 sao).\n\n"
+                "4. Phần Quản Trị (Admin):\n"
+                "- Dashboard: Tổng số người dùng, tổng số vé bán theo chi nhánh, tổng số phim, tổng doanh thu, Top phim hot.\n"
+                "- Quản lý khách hàng (xem chi tiết, thêm mới).\n"
+                "- Quản lý phim (chi tiết, thêm, sửa).\n"
+                "- Quản lý đạo diễn, diễn viên (chi tiết vai diễn, thêm, sửa).\n"
+                "- Quản lý loại ghế (thêm, sửa).\n"
+                "- Quản lý vé đặt (chi tiết vé).\n"
+                "- Quản lý phòng chiếu, lịch chiếu (thông tin, thêm mới).\n"
+                "- Quản lý thể loại phim (thêm, sửa)."
+            ),
+            "demo_url": None,
+            "source_url": "https://github.com/quockhoa53/WebCinema_Chatbot",
+            "detail_url": "/projects/1",
+        }
+    ],
+    "skills": [
+        {"name": "Java & Spring Boot", "category": "Backend Development"},
+        {"name": "Python & Machine Learning", "category": "AI & Data Science"},
+        {"name": "PostgreSQL & SQL Server", "category": "Databases"},
+        {"name": "React & JavaScript", "category": "Frontend Development"},
+        {"name": "Docker & Cloud", "category": "DevOps & Infrastructure"},
+    ],
+    "knowledge_articles": [
+        {
+            "id": 1,
+            "title": "Clean Architecture trong Spring Boot",
+            "slug": "clean-architecture-spring-boot",
+            "category": "Backend Architecture",
+            "summary": "Hướng dẫn áp dụng Clean Architecture, Domain-Driven Design trong các dự án Spring Boot quy mô lớn.",
+            "content_plain": "Hướng dẫn áp dụng Clean Architecture, Domain-Driven Design trong các dự án Spring Boot quy mô lớn.",
+            "detail_url": "/knowledge/clean-architecture-spring-boot",
+        }
+    ],
+    "work_items": [],
+}
+
+
 def get_live_portfolio_data(force_refresh: bool = False) -> Dict[str, Any]:
-    """Returns cached portfolio knowledge with TTL expiration, never serving empty projects."""
+    """Returns cached portfolio knowledge with TTL expiration, guaranteeing rich fallback."""
     global _KNOWLEDGE_CACHE, _KNOWLEDGE_TIMESTAMP
 
     now = time.time()
@@ -308,11 +392,7 @@ def get_live_portfolio_data(force_refresh: bool = False) -> Dict[str, Any]:
     if data and data.get("projects") and len(data.get("projects", [])) > 0:
         _KNOWLEDGE_CACHE = data
         _KNOWLEDGE_TIMESTAMP = now
+        return _KNOWLEDGE_CACHE
 
-    return data or _KNOWLEDGE_CACHE or {
-        "profile": {},
-        "projects": [],
-        "skills": [],
-        "knowledge_articles": [],
-        "work_items": [],
-    }
+    # Return robust fallback if both live sources are cold-starting or unavailable
+    return FALLBACK_PORTFOLIO_DATA
