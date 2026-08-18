@@ -59,7 +59,7 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
             if p.get("summary"):
                 prompt_parts.append(f"  - Tóm tắt: {p.get('summary')}")
             if p.get("description_plain"):
-                prompt_parts.append(f"  - Chi tiết giải pháp: {p.get('description_plain')[:350]}...")
+                prompt_parts.append(f"  - Toàn bộ nội dung mô tả chi tiết & kiến trúc nghiệp vụ thực tế của dự án:\n{p.get('description_plain')[:4500]}")
             if p.get("detail_url"):
                 prompt_parts.append(f"  - Link xem chi tiết trên Portfolio: [{p.get('title')}]({p.get('detail_url')})")
             if p.get("demo_url"):
@@ -87,8 +87,10 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
             prompt_parts.append(f"- **{detail_link}** ({a.get('category')}): {a.get('summary')}")
 
     prompt_parts.append("\n[QUY TẮC BẮT BUỘC VỀ DỰ ÁN & ĐIỀU HƯỚNG LIÊN KẾT]:")
-    prompt_parts.append("1. DỰ ÁN RẠP CHIẾU PHIM / ĐẶT VÉ PHIM: Anh Khoa ĐÃ THỰC HIỆN dự án 'Hệ thống đặt vé xem phim có tích hợp ChatBot hỗ trợ khách hàng'. Bất cứ khi nào người dùng hỏi về 'rạp chiếu phim', 'vé xem phim', 'cinema', 'phim', bạn phải tự hào giới thiệu chi tiết dự án này (Java, Spring Boot, SQL Server, Python ChatBot), tính năng chọn ghế - giữ ghế, link [👉 Xem chi tiết dự án](/projects/1) và link GitHub https://github.com/quockhoa53/WebCinema_Chatbot.")
-    prompt_parts.append("2. CÁC DỰ ÁN KHÁC: Liệt kê đúng các dự án trong mục [3. CÁC DỰ ÁN THỰC TẾ TIÊU BIỂU]. Nếu hỏi về lĩnh vực hoàn toàn chưa làm (như nông nghiệp, vũ trụ), mới thông báo chưa có thông tin.")
+    prompt_parts.append("1. TRUNG THỰC VÀ CHÍNH XÁC VỚI NỘI DUNG DỰ ÁN (CHỐNG SUY DIỄN / KHÔNG TỰ BỊA ĐẶT):")
+    prompt_parts.append("   - BẤT KỲ KHI NÀO người dùng hỏi sâu vào chi tiết dự án (ví dụ: các tính năng Admin, ngữ cảnh đề xuất của ChatBot, quy tắc tính tỉ lệ, các loại ghế, giá ghế, thời gian giữ ghế 5 phút, các mục trên trang chủ...): BẮT BUỘC trả lời chính xác 100% dựa theo nội dung tài liệu thực tế của dự án ở trên.")
+    prompt_parts.append("   - TUYỆT ĐỐI KHÔNG tự suy diễn hoặc bịa ra các thư viện, framework, công thức, tên phim hay cơ chế không có trong mô tả dự án (ví dụ: không tự bịa ra spaCy, Flask, CQRS, điểm số 0.6/0.1 giả định).")
+    prompt_parts.append("2. DỰ ÁN RẠP CHIẾU PHIM / ĐẶT VÉ PHIM: Anh Khoa ĐÃ THỰC HIỆN dự án 'Hệ thống đặt vé xem phim có tích hợp ChatBot hỗ trợ khách hàng'. Bất cứ khi nào người dùng hỏi về 'rạp chiếu phim', 'vé xem phim', 'cinema', 'phim', bạn phải tự hào giới thiệu dự án này (Java, Spring Boot, SQL Server, Python ChatBot), link [👉 Xem chi tiết dự án](/projects/1) và link GitHub https://github.com/quockhoa53/WebCinema_Chatbot.")
     prompt_parts.append("3. CHÈN LINK ĐIỀU HƯỚNG (LINK NỘI BỘ):")
     prompt_parts.append("   - Khi nhắc đến Dự án: Luôn chèn link [👉 Xem chi tiết dự án](/projects/1) và link GitHub.")
     prompt_parts.append("   - Khi nhắc đến Bài viết kiến thức: Luôn chèn link [📖 Đọc bài viết chi tiết](/knowledge/clean-architecture-spring-boot).")
