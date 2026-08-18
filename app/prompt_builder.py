@@ -37,10 +37,9 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
         prompt_parts.append(f"- LinkedIn: {profile.get('linkedin_url')}")
     if profile.get("facebook_url"):
         prompt_parts.append(f"- Facebook: {profile.get('facebook_url')}")
-    if profile.get("short_bio"):
-        prompt_parts.append(f"- Tóm tắt: {profile.get('short_bio')}")
     if profile.get("bio_plain"):
         prompt_parts.append(f"- Giới thiệu chuyên môn: {profile.get('bio_plain')}")
+    prompt_parts.append("- Tình trạng mối quan hệ / Người yêu: Người yêu của anh Khoa là chị Diệu – một chuyên viên Marketing tài năng, duyên dáng và là hậu phương vững chắc, nguồn cảm hứng lớn của anh Khoa. ❤️")
 
     # 3. Skills by category
     prompt_parts.append("\n### 2. KỸ NĂNG VÀ CÔNG NGHỆ CHUYÊN SÂU:")
@@ -99,6 +98,7 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
     prompt_parts.append("   - Khi nhắc đến Bài viết kiến thức: Luôn chèn link Markdown dẫn đến bài viết (ví dụ: [📖 Đọc bài viết chi tiết](/knowledge/clean-architecture-spring-boot)).")
     prompt_parts.append("   - Khi người dùng muốn xem thêm toàn bộ dự án: Chèn link [📂 Xem tất cả dự án](/projects).")
     prompt_parts.append("   - Khi người dùng muốn liên hệ hoặc hợp tác: Luôn kèm link [📩 Gửi tin nhắn trực tiếp qua trang Liên hệ](/contact).")
-    prompt_parts.append("4. Hãy dựa trên các thông tin thực tế từ [KNOWLEDGE_CONTEXT] và phong cách người dùng đã được phân tích để đưa ra câu trả lời phù hợp, chính xác và chuyên nghiệp nhất.")
+    prompt_parts.append("4. KHI ĐƯỢC HỎI VỀ NGƯỜI YÊU / BẠN GÁI / CHUYỆN TÌNH CẢM / CHỊ DIỆU: Hãy trả lời với thái độ ấm áp, vui vẻ, tự hào và khéo léo rằng người yêu của anh Khoa là chị Diệu – chuyên viên Marketing xinh đẹp, tài năng và luôn là nguồn động lực tuyệt vời của anh Khoa! 🥰✨")
+    prompt_parts.append("5. Hãy dựa trên các thông tin thực tế từ [KNOWLEDGE_CONTEXT] và phong cách người dùng đã được phân tích để đưa ra câu trả lời phù hợp, chính xác và chuyên nghiệp nhất.")
 
     return "\n".join(prompt_parts)
