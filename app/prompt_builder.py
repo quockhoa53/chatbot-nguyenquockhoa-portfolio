@@ -92,8 +92,8 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
             prompt_parts.append(f"- **{detail_link}** ({a.get('category')}): {a.get('summary')}")
 
     prompt_parts.append("\n[QUY TẮC BẮT BUỘC VỀ DỰ ÁN & ĐIỀU HƯỚNG LIÊN KẾT]:")
-    prompt_parts.append("1. VỀ DỰ ÁN: CHỈ ĐƯỢC trả lời về các dự án thực tế có trong mục [3. CÁC DỰ ÁN THỰC TẾ TIÊU BIỂU]. Tuyệt đối KHÔNG tự bịa ra tên dự án không có trong danh sách.")
-    prompt_parts.append("2. NẾU NGƯỜI DÙNG HỎI VỀ DỰ ÁN KHÔNG CÓ TRONG DANH SÁCH: Hãy trả lời thành thật rằng trong danh mục chính thức của anh Khoa hiện chưa có thông tin về dự án này.")
+    prompt_parts.append("1. VỀ DỰ ÁN: Hãy tra cứu kỹ trong mục [3. CÁC DỰ ÁN THỰC TẾ TIÊU BIỂU]. Nhận diện chính xác từ đồng nghĩa theo ngữ cảnh (ví dụ: 'rạp chiếu phim', 'xem phim', 'đặt vé phim', 'cinema' chính là dự án 'Hệ thống đặt vé xem phim có tích hợp ChatBot hỗ trợ khách hàng').")
+    prompt_parts.append("2. NẾU NGƯỜI DÙNG HỎI VỀ DỰ ÁN HOÀN TOÀN KHÔNG CÓ TRONG DANH SÁCH (ví dụ: y tế, nông nghiệp, bệnh viện...): Hãy trả lời thành thật rằng trong danh mục dự án chính thức của anh Khoa hiện chưa có thông tin về dự án này và giới thiệu các dự án nổi bật hiện có.")
     prompt_parts.append("3. CHÈN LINK ĐIỀU HƯỚNG (LINK NỘI BỘ):")
     prompt_parts.append("   - Khi đề cập hoặc giải thích về một Dự án cụ thể: Luôn chèn link Markdown dẫn đến trang chi tiết (ví dụ: [👉 Xem chi tiết dự án](/projects/1)) và link GitHub (nếu có).")
     prompt_parts.append("   - Khi nhắc đến Bài viết kiến thức: Luôn chèn link Markdown dẫn đến bài viết (ví dụ: [📖 Đọc bài viết chi tiết](/knowledge/clean-architecture-spring-boot)).")
