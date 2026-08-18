@@ -21,7 +21,9 @@ class Settings:
     DB_NAME: str = os.getenv("DB_NAME", "portfolio").strip()
     DB_USER: str = os.getenv("DB_USER", "postgres").strip()
     DB_PASSWORD: str = os.getenv("DB_PASSWORD", "1234").strip()
-    PORTFOLIO_BE_URL: str = os.getenv("PORTFOLIO_BE_URL", "http://localhost:8080").strip()
+    PORTFOLIO_BE_URL: str = os.getenv(
+        "PORTFOLIO_BE_URL", "https://nguyenquockhoa.onrender.com/api/v1"
+    ).strip()
 
     # Server Settings
     HOST: str = os.getenv("HOST", "0.0.0.0").strip()
