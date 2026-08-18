@@ -59,7 +59,7 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
             if p.get("summary"):
                 prompt_parts.append(f"  - Tóm tắt: {p.get('summary')}")
             if p.get("description_plain"):
-                prompt_parts.append(f"  - Toàn bộ nội dung mô tả chi tiết & kiến trúc nghiệp vụ thực tế của dự án:\n{p.get('description_plain')[:4500]}")
+                prompt_parts.append(f"  - Toàn bộ nội dung mô tả chi tiết & kiến trúc nghiệp vụ thực tế của dự án:\n{p.get('description_plain')}")
             if p.get("detail_url"):
                 prompt_parts.append(f"  - Link xem chi tiết trên Portfolio: [{p.get('title')}]({p.get('detail_url')})")
             if p.get("demo_url"):

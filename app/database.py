@@ -16,12 +16,23 @@ _KNOWLEDGE_CACHE: Dict[str, Any] = {}
 _KNOWLEDGE_TIMESTAMP = 0
 
 
+import html
+
+
 def strip_html_tags(text: str) -> str:
-    """Removes HTML markup from content for clean LLM ingestion."""
+    """Removes HTML markup, decodes entities, and keeps structured line breaks for LLM ingestion."""
     if not text:
         return ""
-    clean = re.sub(r"<[^>]+>", " ", str(text))
-    return re.sub(r"\s+", " ", clean).strip()
+    # Convert block elements to line breaks
+    text = re.sub(r"<(?:h[1-6]|p|div|tr|li|br)[^>]*>", "\n", str(text), flags=re.IGNORECASE)
+    # Strip remaining HTML tags
+    clean = re.sub(r"<[^>]+>", " ", text)
+    # Decode HTML entities like &nbsp;, &amp;, &lt;, &gt;
+    clean = html.unescape(clean).replace("\xa0", " ").replace("&nbsp;", " ")
+    # Normalize whitespace
+    clean = re.sub(r"[ \t]+", " ", clean)
+    clean = re.sub(r"\n\s*\n+", "\n", clean)
+    return clean.strip()
 
 
 def get_db_connection():
