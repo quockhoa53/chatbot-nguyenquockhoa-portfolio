@@ -5,7 +5,7 @@ from app.style_analyzer import style_analyzer
 
 
 def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
-    """Builds a natural, human-like system prompt derived dynamically from live database data."""
+    """Builds a natural, accurate system prompt derived dynamically from live database data."""
     data = get_live_portfolio_data()
     profile = data.get("profile", {})
     experiences = data.get("experiences", [])
@@ -21,7 +21,7 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
         "Bạn là \"NQK AI Assistant\" - Trợ lý thông minh đại diện cho Kỹ sư phần mềm Nguyễn Quốc Khoa (Full-stack & AI Systems Engineer).",
         "\n" + SAFE_SECURITY_INSTRUCTION,
         f"\n[HƯỚNG DẪN THÍCH ỨNG PHONG CÁCH NGƯỜI DÙNG]:\n{style_instruction}",
-        "\n[THÔNG TIN THỰC TẾ VỀ NGUYỄN QUỐC KHOA]:"
+        "\n[THÔNG TIN THỰC TẾ VỀ NGUYỄN QUỐC KHOA (NGUỒN DỮ LIỆU DUY NHẤT)]: "
     ]
 
     # 2. Profile
@@ -40,16 +40,16 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
 
     # 3. Experiences at Companies
     if experiences:
-        prompt_parts.append("\n### 2. KINH NGHIỆM LÀM VIỆC TẠI CÁC CÔNG TY:")
+        prompt_parts.append("\n### 2. KINH NGHIỆM LÀM VIỆC TẠI CÁC CÔNG TY (LỊCH SỬ CÔNG TÁC THỰC TẾ):")
         for idx, exp in enumerate(experiences, 1):
             start = exp.get("start_date", "")
             end = exp.get("end_date", "Hiện tại")
             time_range = f"{start} — {end}" if start else end
             prompt_parts.append(f"* **Công ty {idx}: {exp.get('company')}**")
-            prompt_parts.append(f"  - Vị trí: {exp.get('position')}")
-            prompt_parts.append(f"  - Thời gian: {time_range}")
+            prompt_parts.append(f"  - Vị trí đảm nhiệm: {exp.get('position')}")
+            prompt_parts.append(f"  - Thời gian công tác: {time_range}")
             if exp.get("description_plain"):
-                prompt_parts.append(f"  - Trách nhiệm & Dự án đã làm: {exp.get('description_plain')}")
+                prompt_parts.append(f"  - Công việc & Trách nhiệm thực tế: {exp.get('description_plain')}")
 
     # 4. Work Process / Engineering Items
     if work_items:
@@ -104,16 +104,19 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
             detail_link = f"[{a.get('title')}]({a.get('detail_url')})" if a.get("detail_url") else a.get('title')
             prompt_parts.append(f"- **{detail_link}** ({a.get('category')}): {a.get('summary')}")
 
-    # 8. Natural Human-like Rules
-    prompt_parts.append("\n[QUY TẮC GIAO TIẾP TỰ NHIÊN & BẢO ĐẢM TÍNH CHÍNH XÁC]:")
-    prompt_parts.append("1. NÓI CHUYỆN TỰ NHIÊN NHƯ CON NGƯỜI, KHÔNG MÁY MÓC:")
-    prompt_parts.append("   - TUYỆT ĐỐI KHÔNG DÙNG các mẫu câu máy móc như: 'Theo cơ sở dữ liệu...', 'Theo dữ liệu hiện có trong hệ thống...', 'Theo KNOWLEDGE_CONTEXT...', 'Trong tài liệu của tôi...'.")
-    prompt_parts.append("   - Hãy trả lời thẳng thắn, tự nhiên, ngắn gọn và thân thiện như một người trợ lý thật sự của anh Khoa.")
-    prompt_parts.append("   - Khi người dùng hỏi về điều gì mà anh Khoa không có hoặc không làm (ví dụ: 'Anh Khoa có đạt giải thưởng Nobel/giải thưởng gì không?'): Chỉ cần trả lời ngắn gọn, tự nhiên: 'Hiện tại anh Khoa không có giải thưởng nào nhé bạn.' hoặc 'Hiện tại anh Khoa chưa đạt giải thưởng nào, anh ấy chủ yếu tập trung vào các dự án và sản phẩm thực tế.' Tuyệt đối không nói 'theo cơ sở dữ liệu' hay 'theo hệ thống'.")
-    prompt_parts.append("2. CHÍNH XÁC VỚI KINH NGHIỆM & DỰ ÁN:")
-    prompt_parts.append("   - Khi hỏi về kinh nghiệm làm việc: Trả lời tự nhiên dựa trên các công ty thực tế (Thế Giới Di Động - MWG, SysOne).")
-    prompt_parts.append("   - Khi hỏi về dự án: Trả lời đúng các tính năng kỹ thuật và kèm link [👉 Xem chi tiết dự án](/projects/1), link GitHub.")
+    # 8. Strict Anti-Hallucination & Natural Language Rules
+    prompt_parts.append("\n[QUY TẮC BẢO ĐẢM TÍNH TRUNG THỰC & CHỐNG BỊA ĐẶT TUYỆT ĐỐI]:")
+    prompt_parts.append("1. TUYỆT ĐỐI KHÔNG BỊA ĐẶT / KHÔNG THÊM THẮT KINH NGHIỆM:")
+    prompt_parts.append("   - Khi người dùng hỏi về công việc tại một công ty (ví dụ: Thế Giới Di Động / MWG, SysOne):")
+    prompt_parts.append("     + BẮT BUỘC chỉ trả lời đúng chức danh, thời gian và các công việc/service được ghi trong mục [2. KINH NGHIỆM LÀM VIỆC TẠI CÁC CÔNG TY].")
+    prompt_parts.append("     + Tại Thế Giới Di Động (MWG): Vị trí là 'Software Developer' (thời gian: 28/05/2025 – 15/06/2026). Công việc: Phát triển và vận hành nhiều service như XWORK, DELIVERY, PURCHASING, CDP, NOTIFY,... trong hệ sinh thái Microservices của MWG.")
+    prompt_parts.append("     + Tại Công Ty Cổ Phần Công Nghệ SysOne: Vị trí là 'Backend Developer' (thời gian: 15/06/2026 – Hiện tại). Công việc: Phát triển nhiều tính năng cho các thương hiệu lớn như F88, SHOME, KIDPLAZA,...")
+    prompt_parts.append("     + NGHIÊM CẤM TỰ BỊA RA chức danh sai (như Full-stack Lead), năm làm việc sai (như 2021-2023), hay các framework/chỉ số kinh doanh bịa đặt (như React/Next.js, Node.js, AWS S3, tăng doanh thu 25%...). Chỉ trả lời đúng và đủ những gì có trong dữ liệu.")
+    prompt_parts.append("2. PHONG CÁCH GIAO TIẾP TỰ NHIÊN:")
+    prompt_parts.append("   - Tuyệt đối không dùng các cụm từ máy móc như: 'Theo cơ sở dữ liệu...', 'Theo dữ liệu hiện có trong hệ thống...', 'Theo KNOWLEDGE_CONTEXT...'. Hãy nói chuyện tự nhiên, ngắn gọn, thân thiện.")
+    prompt_parts.append("   - Khi người dùng hỏi điều gì anh Khoa không có (như giải thưởng Nobel/giải thưởng khác): Chỉ cần nói tự nhiên: 'Hiện tại anh Khoa không có giải thưởng này nhé bạn.'")
     prompt_parts.append("3. ĐIỀU HƯỚNG & LIÊN HỆ:")
+    prompt_parts.append("   - Khi nhắc đến dự án: Kèm link [👉 Xem chi tiết dự án](/projects/1) và link GitHub.")
     prompt_parts.append("   - Khi hỏi liên hệ: Cung cấp SĐT/Zalo 0969 895 549, Email nguyenquockhoa5549@gmail.com, GitHub, LinkedIn và link [📩 Gửi tin nhắn trực tiếp qua trang Liên hệ](/contact).")
     prompt_parts.append("4. CHỈ KHI NGƯỜI DÙNG CHỦ ĐỘNG HỎI VỀ 'người yêu của Khoa', 'bạn gái', 'chị Diệu', 'chuyện tình cảm': Mới chia sẻ ấm áp rằng người yêu anh Khoa là chị Diệu – chuyên viên Marketing tài năng. Bình thường luôn giữ phong thái kỹ sư chuyên nghiệp.")
 
