@@ -17,16 +17,16 @@ class Settings:
     _raw_groq_model = os.getenv("GROQ_MODEL", "").strip()
     GROQ_MODEL: str = _raw_groq_model if (_raw_groq_model and "openai" not in _raw_groq_model) else "llama-3.3-70b-versatile"
 
-    # Database Settings (Safe public access only - fallback to Neon production if localhost configured on cloud)
+    # Database Settings (Safe public access only - fallback to Neon production if local dummy credentials on cloud)
     _raw_db_host = os.getenv("DB_HOST", "").strip()
-    DB_HOST: str = _raw_db_host if (_raw_db_host and _raw_db_host != "localhost" and _raw_db_host != "127.0.0.1") else "ep-gentle-dew-axryx2mu-pooler.c-4.us-east-2.aws.neon.tech"
+    DB_HOST: str = _raw_db_host if (_raw_db_host and _raw_db_host not in ["localhost", "127.0.0.1", "db"]) else "ep-gentle-dew-axryx2mu-pooler.c-4.us-east-2.aws.neon.tech"
     DB_PORT: int = int(os.getenv("DB_PORT", "5432"))
     _raw_db_name = os.getenv("DB_NAME", "").strip()
-    DB_NAME: str = _raw_db_name if (_raw_db_name and _raw_db_name != "portfolio") else "neondb"
+    DB_NAME: str = _raw_db_name if (_raw_db_name and _raw_db_name not in ["portfolio", "postgres"]) else "neondb"
     _raw_db_user = os.getenv("DB_USER", "").strip()
-    DB_USER: str = _raw_db_user if (_raw_db_user and _raw_db_user != "postgres") else "neondb_owner"
+    DB_USER: str = _raw_db_user if (_raw_db_user and _raw_db_user not in ["postgres", "root", "admin"]) else "neondb_owner"
     _raw_db_pass = os.getenv("DB_PASSWORD", "").strip()
-    DB_PASSWORD: str = _raw_db_pass if _raw_db_pass else "npg_4LRx7pFVeDnr"
+    DB_PASSWORD: str = _raw_db_pass if (_raw_db_pass and _raw_db_pass not in ["postgres", "admin", "root", "password"]) else "npg_4LRx7pFVeDnr"
 
     _raw_be_url = os.getenv("PORTFOLIO_BE_URL", "").strip()
     PORTFOLIO_BE_URL: str = _raw_be_url if (_raw_be_url and "localhost" not in _raw_be_url) else "https://nguyenquockhoa.onrender.com/api/v1"
