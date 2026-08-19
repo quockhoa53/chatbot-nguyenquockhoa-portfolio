@@ -79,17 +79,15 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
 
     # 3. Work Process / Specific Engineering Items
     if work_items:
-        prompt_parts.append("\n=== 3. QUÁ TRÌNH LÀM VIỆC & MẢNG KỸ THUẬT CHUYÊN SÂU (Bảng work_items) ===")
+        prompt_parts.append("\n=== 3. QUÁ TRÌNH LÀM VIỆC (Bảng work_items) ===")
         for idx, w in enumerate(work_items, 1):
-            prompt_parts.append(f"* **Mục {idx}: {w.get('title')}** ({w.get('period')}) - Vai trò: {w.get('role')} tại {w.get('company')}")
+            prompt_parts.append(f"* **{w.get('title')}** ({w.get('period', '')}) - {w.get('role', '')} tại {w.get('company', '')}")
+            if w.get("summary_plain"):
+                prompt_parts.append(f"  - Tóm tắt: {w.get('summary_plain')[:150]}")
             if w.get("technologies"):
                 prompt_parts.append(f"  - Công nghệ: {w.get('technologies')}")
-            if w.get("summary_plain"):
-                prompt_parts.append(f"  - Tóm tắt: {w.get('summary_plain')}")
-            if w.get("content_plain"):
-                prompt_parts.append(f"  - Chi tiết công việc: {w.get('content_plain')}")
             if w.get("detail_url"):
-                prompt_parts.append(f"  - Link chi tiết: [{w.get('title')}]({w.get('detail_url')})")
+                prompt_parts.append(f"  - Link: [{w.get('title')}]({w.get('detail_url')})")
 
     # 4. Technical Skills
     if skills:
@@ -105,41 +103,30 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
 
     # 5. Projects
     if projects:
-        prompt_parts.append("\n=== 5. CÁC DỰ ÁN TIÊU BIỂU & MÃ NGUỒN (Bảng projects) ===")
+        prompt_parts.append("\n=== 5. CÁC DỰ ÁN TIÊU BIỂU (Bảng projects) ===")
         for idx, p in enumerate(projects, 1):
             feat = " [⭐ NỔI BẬT]" if p.get("featured") else ""
-            prompt_parts.append(f"\n* **DỰ ÁN {idx}: {p.get('title')}{feat}**")
-            prompt_parts.append(f"  - Công nghệ sử dụng: {p.get('technologies', 'N/A')}")
+            prompt_parts.append(f"* **{p.get('title')}{feat}**: Công nghệ: {p.get('technologies', 'N/A')}")
             if p.get("summary"):
                 prompt_parts.append(f"  - Tóm tắt: {p.get('summary')}")
-            if p.get("description_plain"):
-                prompt_parts.append(f"  - Mô tả kỹ thuật & kiến trúc chi tiết:\n{p.get('description_plain')}")
             if p.get("detail_url"):
-                prompt_parts.append(f"  - Link xem trên Portfolio: [{p.get('title')}]({p.get('detail_url')})")
-            if p.get("demo_url"):
-                prompt_parts.append(f"  - Demo trực tiếp: {p.get('demo_url')}")
-            if p.get("source_url"):
-                prompt_parts.append(f"  - Mã nguồn GitHub: {p.get('source_url')}")
+                prompt_parts.append(f"  - Link xem: [{p.get('title')}]({p.get('detail_url')})")
 
     # 6. Knowledge Articles
     if articles:
-        prompt_parts.append("\n=== 6. TẤT CẢ BÀI VIẾT CHIA SẺ KIẾN THỨC HIỆN CÓ TRÊN WEBSITE (Bảng knowledge_articles) ===")
+        prompt_parts.append("\n=== 6. BÀI VIẾT CHIA SẺ KIẾN THỨC (Bảng knowledge_articles) ===")
         for idx, a in enumerate(articles, 1):
-            prompt_parts.append(f"\n* **BÀI VIẾT {idx}: {a.get('title')}**")
-            prompt_parts.append(f"  - Chủ đề / Danh mục: {a.get('category', 'Kiến thức')}")
+            prompt_parts.append(f"* **{a.get('title')}** (Chủ đề: {a.get('category', 'Kiến thức')})")
             if a.get("summary"):
-                prompt_parts.append(f"  - Tóm tắt nội dung: {a.get('summary')}")
-            if a.get("content_plain"):
-                prompt_parts.append(f"  - Trích đoạn nội dung chính:\n{a.get('content_plain')[:400]}...")
+                prompt_parts.append(f"  - Tóm tắt: {a.get('summary')}")
             if a.get("detail_url"):
-                prompt_parts.append(f"  - Link bài viết chính thức: [{a.get('title')}]({a.get('detail_url')})")
+                prompt_parts.append(f"  - Link bài viết: [{a.get('title')}]({a.get('detail_url')})")
 
     # 7. AI Extra Facts & Special Sidecar Knowledge
     if ai_facts:
         prompt_parts.append("\n=== 7. THÔNG TIN BỔ SUNG & BỘ NHỚ ĐẶC BIỆT (Bảng ai_facts) ===")
         for idx, f in enumerate(ai_facts, 1):
-            prompt_parts.append(f"* **Mục {idx}: {f.get('title')}** (Phân loại: {f.get('category')})")
-            prompt_parts.append(f"  {f.get('content')}")
+            prompt_parts.append(f"* **{f.get('title')}** ({f.get('category')}): {f.get('content')}")
 
     # Universal Reasoning Framework (Zero Hardcoding)
     prompt_parts.append("\n[NGUYÊN TẮC SUY LUẬN & TRẢ LỜI TỔNG QUÁT]:")
