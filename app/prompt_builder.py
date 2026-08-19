@@ -1,4 +1,5 @@
 from typing import Any, Dict, List
+from app.config import settings
 from app.database import get_live_portfolio_data
 from app.security import SAFE_SECURITY_INSTRUCTION
 from app.style_analyzer import style_analyzer
