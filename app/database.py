@@ -167,6 +167,27 @@ def fetch_from_postgres() -> Optional[Dict[str, Any]]:
                 "detail_url": f"/knowledge/{slug}" if slug else "/knowledge",
             })
 
+        # 7. AI Extra Facts & Sidecar Knowledge (Table: ai_facts)
+        try:
+            cursor.execute("""
+                SELECT id, category, title, content, is_active, display_order
+                FROM ai_facts
+                WHERE is_active = TRUE
+                ORDER BY display_order ASC, id ASC;
+            """)
+            raw_facts = cursor.fetchall() or []
+            ai_facts = []
+            for f in raw_facts:
+                ai_facts.append({
+                    "id": f.get("id"),
+                    "category": f.get("category", "Khác"),
+                    "title": f.get("title"),
+                    "content": strip_html_tags(f.get("content", "")),
+                    "display_order": f.get("display_order", 0),
+                })
+        except Exception:
+            ai_facts = []
+
         cursor.close()
         conn.close()
 
@@ -177,6 +198,7 @@ def fetch_from_postgres() -> Optional[Dict[str, Any]]:
             "skills": skills,
             "projects": projects,
             "knowledge_articles": articles,
+            "ai_facts": ai_facts,
         }
 
     except Exception as e:

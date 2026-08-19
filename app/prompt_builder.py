@@ -13,6 +13,7 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
     skills = data.get("skills", [])
     projects = data.get("projects", [])
     articles = data.get("knowledge_articles", [])
+    ai_facts = data.get("ai_facts", [])
 
     style_instruction = style_analyzer.get_style_directive(user_style_key)
 
@@ -133,6 +134,13 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
             if a.get("detail_url"):
                 prompt_parts.append(f"  - Link bài viết chính thức: [{a.get('title')}]({a.get('detail_url')})")
 
+    # 7. AI Extra Facts & Special Sidecar Knowledge
+    if ai_facts:
+        prompt_parts.append("\n=== 7. THÔNG TIN BỔ SUNG & BỘ NHỚ ĐẶC BIỆT (Bảng ai_facts) ===")
+        for idx, f in enumerate(ai_facts, 1):
+            prompt_parts.append(f"* **Mục {idx}: {f.get('title')}** (Phân loại: {f.get('category')})")
+            prompt_parts.append(f"  {f.get('content')}")
+
     # Universal Reasoning Framework (Zero Hardcoding)
     prompt_parts.append("\n[NGUYÊN TẮC SUY LUẬN & TRẢ LỜI TỔNG QUÁT]:")
     prompt_parts.append("1. NGUYÊN TẮC TÌM KIẾM NGỮ NGHĨA & ÁNH XẠ Ý ĐỊNH (SEMANTIC INTENT MAPPING):")
@@ -142,15 +150,14 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
     prompt_parts.append("     + Hỏi về 'kinh nghiệm', 'công ty', 'thời gian làm việc' -> Đọc từ mục [2. LỊCH SỬ KINH NGHIỆM LÀM VIỆC TẠI CÁC CÔNG TY].")
     prompt_parts.append("     + Hỏi về bài viết kiến thức theo chủ đề (ví dụ: database, cơ sở dữ liệu, Clean Architecture, tối ưu hóa, Kafka, Spring Boot, AI...) -> Quét toàn bộ tiêu đề, danh mục, tóm tắt và nội dung tại mục [6. TẤT CẢ BÀI VIẾT CHIA SẺ KIẾN THỨC] để giới thiệu chính xác kèm đường link tương ứng.")
     prompt_parts.append("     + Hỏi về dự án thực tế -> Giới thiệu các dự án phù hợp trong mục [5. CÁC DỰ ÁN TIÊU BIỂU] kèm đường link tương ứng.")
+    prompt_parts.append("     + Hỏi về các chủ đề đời tư, bạn bè, người yêu, sở thích, thú cưng, quan điểm cá nhân, v.v. -> Quét và trả lời từ mục [7. THÔNG TIN BỔ SUNG & BỘ NHỚ ĐẶC BIỆT] (nếu có thông tin).")
     prompt_parts.append("     + Nếu một chủ đề người dùng hỏi hoàn toàn không có bất kỳ thông tin nào trong kho dữ liệu: Trả lời tự nhiên, ngắn gọn rằng anh Khoa hiện chưa có nội dung về chủ đề này trên website.")
     prompt_parts.append("2. NGUYÊN TẮC TRUNG THỰC DỮ LIỆU (GROUNDED GENERATION):")
-    prompt_parts.append("   - Mọi thông tin (tên công ty, trường học, chức danh, dự án, bài viết, đường link, thông tin liên hệ) BẮT BUỘC phải lấy 100% từ KHO DỮ LIỆU THỰC TẾ ở trên.")
+    prompt_parts.append("   - Mọi thông tin (tên công ty, trường học, chức danh, dự án, bài viết, đường link, thông tin liên hệ, sự kiện cá nhân) BẮT BUỘC phải lấy 100% từ KHO DỮ LIỆU THỰC TẾ ở trên.")
     prompt_parts.append("3. VĂN PHONG GIAO TIẾP TỰ NHIÊN, CON NGƯỜI:")
     prompt_parts.append("   - Trả lời thân thiện, súc tích, chuyên nghiệp và thẳng thắn. Tuyệt đối không dùng các cụm từ máy móc như: 'Theo cơ sở dữ liệu...', 'Theo dữ liệu hiện có...', 'Theo KNOWLEDGE_CONTEXT...' hay 'Theo hệ thống...'.")
     prompt_parts.append("4. ĐIỀU HƯỚNG LIÊN KẾT & LIÊN HỆ:")
     prompt_parts.append("   - Khi giới thiệu bài viết hoặc dự án: Luôn đính kèm đường link tương ứng có trong kho dữ liệu.")
     prompt_parts.append("   - Khi người dùng hỏi thông tin liên hệ: Cung cấp đầy đủ các kênh liên hệ (Email, Số điện thoại, GitHub, LinkedIn, Facebook) có trong mục [1. THÔNG TIN HỒ SƠ & LIÊN HỆ] và link [📩 Gửi tin nhắn trực tiếp qua trang Liên hệ](/contact).")
-    prompt_parts.append("5. THÔNG TIN BÊN LỀ:")
-    prompt_parts.append("   - Chỉ khi người dùng chủ động hỏi về chuyện tình cảm / người yêu / bạn gái: Mới chia sẻ ấm áp rằng người yêu anh Khoa là chị Diệu – chuyên viên Marketing tài năng. Bình thường luôn giữ phong thái kỹ sư chuyên nghiệp.")
 
     return "\n".join(prompt_parts)
