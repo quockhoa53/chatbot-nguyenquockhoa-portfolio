@@ -161,7 +161,7 @@ def fetch_from_postgres() -> Optional[Dict[str, Any]]:
                 "description_plain": desc_plain,
                 "demo_url": p.get("demo_url"),
                 "source_url": p.get("source_url"),
-                "detail_url": f"/projects/{pid}",
+                "detail_url": f"{settings.FRONTEND_URL}/projects/{pid}",
             })
 
         # 6. Knowledge Articles (Table: knowledge_articles)
@@ -183,7 +183,7 @@ def fetch_from_postgres() -> Optional[Dict[str, Any]]:
                 "category": a.get("category_name"),
                 "summary": a.get("summary") or strip_html_tags(a.get("content", ""))[:180],
                 "content_plain": strip_html_tags(a.get("content", ""))[:600],
-                "detail_url": f"/knowledge/{slug}" if slug else "/knowledge",
+                "detail_url": f"{settings.FRONTEND_URL}/knowledge/{slug}" if slug else f"{settings.FRONTEND_URL}/knowledge",
             })
 
         # 7. AI Extra Facts & Sidecar Knowledge (Table: ai_facts)
@@ -341,7 +341,7 @@ def fetch_from_rest_api() -> Dict[str, Any]:
                         "description_plain": desc_plain,
                         "demo_url": p.get("demoUrl") or p.get("demo_url"),
                         "source_url": p.get("sourceUrl") or p.get("source_url"),
-                        "detail_url": f"/projects/{pid}",
+                        "detail_url": f"{settings.FRONTEND_URL}/projects/{pid}",
                     })
     except Exception as e:
         logger.warning(f"Failed to fetch projects from REST API: {e}")
@@ -363,7 +363,7 @@ def fetch_from_rest_api() -> Dict[str, Any]:
                         "category": a.get("categoryName") or a.get("category_name") or (a.get("category", {}).get("name") if isinstance(a.get("category"), dict) else ""),
                         "summary": a.get("summary") or strip_html_tags(content)[:180],
                         "content_plain": strip_html_tags(content)[:600],
-                        "detail_url": f"/knowledge/{slug}" if slug else "/knowledge",
+                        "detail_url": f"{settings.FRONTEND_URL}/knowledge/{slug}" if slug else f"{settings.FRONTEND_URL}/knowledge",
                     })
     except Exception as e:
         logger.warning(f"Failed to fetch knowledge articles from REST API: {e}")

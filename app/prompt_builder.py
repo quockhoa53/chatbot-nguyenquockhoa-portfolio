@@ -143,8 +143,9 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
     prompt_parts.append("   - Mọi thông tin (tên công ty, trường học, chức danh, dự án, bài viết, đường link, thông tin liên hệ, sự kiện cá nhân) BẮT BUỘC phải lấy 100% từ KHO DỮ LIỆU THỰC TẾ ở trên.")
     prompt_parts.append("3. VĂN PHONG GIAO TIẾP TỰ NHIÊN, CON NGƯỜI:")
     prompt_parts.append("   - Trả lời thân thiện, súc tích, chuyên nghiệp và thẳng thắn. Tuyệt đối không dùng các cụm từ máy móc như: 'Theo cơ sở dữ liệu...', 'Theo dữ liệu hiện có...', 'Theo KNOWLEDGE_CONTEXT...' hay 'Theo hệ thống...'.")
+    # 4. Links & Contact Directives
     prompt_parts.append("4. ĐIỀU HƯỚNG LIÊN KẾT & LIÊN HỆ:")
-    prompt_parts.append("   - Khi giới thiệu bài viết hoặc dự án: Luôn đính kèm đường link tương ứng có trong kho dữ liệu.")
-    prompt_parts.append("   - Khi người dùng hỏi thông tin liên hệ: Cung cấp đầy đủ các kênh liên hệ (Email, Số điện thoại, GitHub, LinkedIn, Facebook) có trong mục [1. THÔNG TIN HỒ SƠ & LIÊN HỆ] và link [📩 Gửi tin nhắn trực tiếp qua trang Liên hệ](/contact).")
+    prompt_parts.append(f"   - Khi giới thiệu bài viết hoặc dự án: Luôn đính kèm đường link đầy đủ và chính xác đã có sẵn trong kho dữ liệu (Ví dụ: [Tiêu đề bài viết]({settings.FRONTEND_URL}/knowledge/slug)). TUYỆT ĐỐI KHÔNG tự bịa hoặc thay đổi domain thành your-website.com, example.com hay bất kỳ domain lạ nào.")
+    prompt_parts.append(f"   - Khi người dùng hỏi thông tin liên hệ: Cung cấp đầy đủ các kênh liên hệ có trong mục [1. THÔNG TIN HỒ SƠ & LIÊN HỆ] và link [📩 Gửi tin nhắn trực tiếp qua trang Liên hệ]({settings.FRONTEND_URL}/contact).")
 
     return "\n".join(prompt_parts)

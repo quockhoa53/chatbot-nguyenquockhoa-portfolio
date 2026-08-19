@@ -30,6 +30,8 @@ class Settings:
 
     _raw_be_url = os.getenv("PORTFOLIO_BE_URL", "").strip()
     PORTFOLIO_BE_URL: str = _raw_be_url if (_raw_be_url and "localhost" not in _raw_be_url) else "https://nguyenquockhoa.onrender.com/api/v1"
+    
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "https://nguyenquockhoaportfolio.vercel.app").rstrip("/")
 
     # Server Settings
     HOST: str = os.getenv("HOST", "0.0.0.0").strip()
