@@ -35,6 +35,18 @@ def strip_html_tags(text: str) -> str:
 
 def get_db_connection():
     """Establishes direct PostgreSQL connection to read safe tables."""
+    db_url = os.getenv("DATABASE_URL") or os.getenv("DB_URL")
+    if db_url:
+        try:
+            conn = psycopg2.connect(
+                db_url,
+                sslmode="require" if "neon.tech" in db_url else "prefer",
+                connect_timeout=6,
+            )
+            return conn
+        except Exception as e:
+            logger.warning(f"PostgreSQL connection via DB_URL failed ({e}).")
+
     try:
         ssl_mode = os.getenv("DB_SSL", "require" if "neon.tech" in settings.DB_HOST else "prefer")
         conn = psycopg2.connect(
@@ -348,6 +360,25 @@ def fetch_from_rest_api() -> Dict[str, Any]:
                     })
     except Exception as e:
         logger.warning(f"Failed to fetch knowledge articles from REST API: {e}")
+
+    # 7. AI Extra Facts & Sidecar Knowledge
+    result["ai_facts"] = []
+    try:
+        res = requests.get(f"{base_url}/ai-facts", timeout=30)
+        if res.status_code == 200:
+            payload = res.json()
+            raw_facts = payload.get("data", payload)
+            if isinstance(raw_facts, list):
+                for f in raw_facts:
+                    result["ai_facts"].append({
+                        "id": f.get("id"),
+                        "category": f.get("category", "Khác"),
+                        "title": f.get("title"),
+                        "content": strip_html_tags(f.get("content", "")),
+                        "display_order": f.get("displayOrder", 0) or f.get("display_order", 0),
+                    })
+    except Exception as e:
+        logger.warning(f"Failed to fetch ai_facts from REST API: {e}")
 
     return result
 
