@@ -396,7 +396,7 @@ def get_live_portfolio_data(force_refresh: bool = False) -> Dict[str, Any]:
 
     now = time.time()
     ttl_seconds = settings.KNOWLEDGE_CACHE_TTL_MINUTES * 60
-    if not force_refresh and _KNOWLEDGE_CACHE and (now - _KNOWLEDGE_TIMESTAMP < ttl_seconds):
+    if not force_refresh and _KNOWLEDGE_CACHE and _KNOWLEDGE_CACHE.get("profile") and (now - _KNOWLEDGE_TIMESTAMP < ttl_seconds):
         return _KNOWLEDGE_CACHE
 
     data = fetch_from_postgres()
@@ -405,9 +405,12 @@ def get_live_portfolio_data(force_refresh: bool = False) -> Dict[str, Any]:
         if rest_data and rest_data.get("profile"):
             data = rest_data
 
-    if data:
+    if data and data.get("profile"):
         _KNOWLEDGE_CACHE = data
         _KNOWLEDGE_TIMESTAMP = now
+        return _KNOWLEDGE_CACHE
+
+    if _KNOWLEDGE_CACHE and _KNOWLEDGE_CACHE.get("profile"):
         return _KNOWLEDGE_CACHE
 
     return {
@@ -417,4 +420,5 @@ def get_live_portfolio_data(force_refresh: bool = False) -> Dict[str, Any]:
         "skills": [],
         "projects": [],
         "knowledge_articles": [],
+        "ai_facts": [],
     }
