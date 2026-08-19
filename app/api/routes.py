@@ -54,13 +54,12 @@ def debug_db():
     
     postgres_err = None
     pg_data = None
+    import psycopg2
     try:
-        conn = get_db_connection()
-        if not conn:
-            postgres_err = "get_db_connection returned None"
-        else:
-            conn.close()
-            pg_data = fetch_from_postgres()
+        uri = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}?sslmode=require"
+        conn = psycopg2.connect(uri, connect_timeout=10)
+        conn.close()
+        pg_data = fetch_from_postgres()
     except Exception as e:
         postgres_err = traceback.format_exc()
 
