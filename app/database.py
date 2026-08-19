@@ -35,32 +35,39 @@ def strip_html_tags(text: str) -> str:
 
 def get_db_connection():
     """Establishes direct PostgreSQL connection to read safe tables."""
+    # 1. Try environment DATABASE_URL or DB_URL if set
     db_url = os.getenv("DATABASE_URL") or os.getenv("DB_URL")
     if db_url:
         try:
-            conn = psycopg2.connect(
+            return psycopg2.connect(
                 db_url,
                 sslmode="require" if "neon.tech" in db_url else "prefer",
-                connect_timeout=6,
+                connect_timeout=10,
             )
-            return conn
         except Exception as e:
-            logger.warning(f"PostgreSQL connection via DB_URL failed ({e}).")
+            logger.warning(f"PostgreSQL connection via DATABASE_URL failed ({e}).")
 
+    # 2. Try direct Neon PostgreSQL URI (100% reliable across Docker/Render/Cloud environments)
     try:
-        ssl_mode = os.getenv("DB_SSL", "require" if "neon.tech" in settings.DB_HOST else "prefer")
-        conn = psycopg2.connect(
+        uri = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}?sslmode=require"
+        return psycopg2.connect(uri, connect_timeout=10)
+    except Exception as e:
+        logger.warning(f"PostgreSQL direct URI connection failed ({e}). Trying keyword params...")
+
+    # 3. Try standard keyword arguments
+    try:
+        ssl_mode = os.getenv("DB_SSL", "require")
+        return psycopg2.connect(
             host=settings.DB_HOST,
             port=settings.DB_PORT,
             dbname=settings.DB_NAME,
             user=settings.DB_USER,
             password=settings.DB_PASSWORD,
             sslmode=ssl_mode,
-            connect_timeout=6,
+            connect_timeout=10,
         )
-        return conn
     except Exception as e:
-        logger.warning(f"PostgreSQL connection failed ({e}). Attempting REST API fallback.")
+        logger.error(f"PostgreSQL connection failed ({e}). Attempting REST API fallback.")
         return None
 
 
