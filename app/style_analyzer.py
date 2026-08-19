@@ -142,22 +142,26 @@ class UserStyleAnalyzer:
 
         # 2. Try Groq classifier
         if self.groq_client:
-            try:
-                res = self.groq_client.chat.completions.create(
-                    model=settings.GROQ_MODEL,
-                    messages=[
-                        {"role": "system", "content": PERSONA_CLASSIFICATION_SYSTEM_PROMPT},
-                        {"role": "user", "content": analysis_prompt},
-                    ],
-                    temperature=0.1,
-                    max_tokens=30,
-                )
-                raw_text = res.choices[0].message.content.strip().lower()
-                for key in STYLE_PROMPT_DIRECTIVES:
-                    if key in raw_text:
-                        detected_label = key
-                        break
-                return detected_label
+            for model_candidate in ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "groq/compound-mini"]:
+                try:
+                    res = self.groq_client.chat.completions.create(
+                        model=model_candidate,
+                        messages=[
+                            {"role": "system", "content": PERSONA_CLASSIFICATION_SYSTEM_PROMPT},
+                            {"role": "user", "content": analysis_prompt},
+                        ],
+                        temperature=0.1,
+                        max_tokens=30,
+                    )
+                    raw_text = res.choices[0].message.content.strip().lower()
+                    for key in STYLE_PROMPT_DIRECTIVES:
+                        if key in raw_text:
+                            detected_label = key
+                            break
+                    return detected_label
+                except Exception as e:
+                    logger.warning(f"[StyleAnalyzer] Groq classifier model {model_candidate} failed: {e}")
+                    continue
             except Exception as e:
                 logger.error(f"[StyleAnalyzer] Groq classification error: {e}")
 
