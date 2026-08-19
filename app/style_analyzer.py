@@ -162,10 +162,8 @@ class UserStyleAnalyzer:
                 except Exception as e:
                     logger.warning(f"[StyleAnalyzer] Groq classifier model {model_candidate} failed: {e}")
                     continue
-            except Exception as e:
-                logger.error(f"[StyleAnalyzer] Groq classification error: {e}")
 
-        return "trung_tinh"
+            return "trung_tinh"
 
     async def analyze_style_async(self, session_id: str, messages: List[Dict[str, str]]):
         """Asynchronous background worker feeding the entire dialogue into the LLM classifier."""
