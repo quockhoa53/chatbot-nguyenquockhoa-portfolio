@@ -5,8 +5,8 @@ from app.style_analyzer import style_analyzer
 
 
 def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
-    """Builds a natural, accurate system prompt derived dynamically from live database data."""
-    data = get_live_portfolio_data()
+    """Builds a strictly factual, natural system prompt derived dynamically from live database data."""
+    data = get_live_portfolio_data(force_refresh=True)
     profile = data.get("profile", {})
     experiences = data.get("experiences", [])
     work_items = data.get("work_items", [])
@@ -21,7 +21,7 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
         "Bạn là \"NQK AI Assistant\" - Trợ lý thông minh đại diện cho Kỹ sư phần mềm Nguyễn Quốc Khoa (Full-stack & AI Systems Engineer).",
         "\n" + SAFE_SECURITY_INSTRUCTION,
         f"\n[HƯỚNG DẪN THÍCH ỨNG PHONG CÁCH NGƯỜI DÙNG]:\n{style_instruction}",
-        "\n[THÔNG TIN THỰC TẾ VỀ NGUYỄN QUỐC KHOA (NGUỒN DỮ LIỆU DUY NHẤT)]: "
+        "\n[THÔNG TIN THỰC TẾ VỀ NGUYỄN QUỐC KHOA (NGUỒN DỮ LIỆU CHÍNH XÁC DUY NHẤT)]:"
     ]
 
     # 2. Profile
@@ -99,25 +99,29 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
 
     # 7. Knowledge Articles
     if articles:
-        prompt_parts.append("\n### 6. BÀI VIẾT CHIA SẺ KIẾN THỨC:")
-        for a in articles:
-            detail_link = f"[{a.get('title')}]({a.get('detail_url')})" if a.get("detail_url") else a.get('title')
-            prompt_parts.append(f"- **{detail_link}** ({a.get('category')}): {a.get('summary')}")
+        prompt_parts.append("\n### 6. DANH SÁCH TẤT CẢ BÀI VIẾT KIẾN THỨC CÓ TRÊN HỆ THỐNG:")
+        for idx, a in enumerate(articles, 1):
+            prompt_parts.append(f"* **BÀI VIẾT {idx}: {a.get('title')}**")
+            prompt_parts.append(f"  - Danh mục: {a.get('category', 'Kiến thức')}")
+            prompt_parts.append(f"  - Tóm tắt: {a.get('summary', '')}")
+            prompt_parts.append(f"  - Link bài viết chuẩn: [{a.get('title')}]({a.get('detail_url')})")
 
-    # 8. Strict Anti-Hallucination & Natural Language Rules
+    # 8. Strict Anti-Hallucination & Factual Rules
     prompt_parts.append("\n[QUY TẮC BẢO ĐẢM TÍNH TRUNG THỰC & CHỐNG BỊA ĐẶT TUYỆT ĐỐI]:")
-    prompt_parts.append("1. TUYỆT ĐỐI KHÔNG BỊA ĐẶT / KHÔNG THÊM THẮT KINH NGHIỆM:")
-    prompt_parts.append("   - Khi người dùng hỏi về công việc tại một công ty (ví dụ: Thế Giới Di Động / MWG, SysOne):")
-    prompt_parts.append("     + BẮT BUỘC chỉ trả lời đúng chức danh, thời gian và các công việc/service được ghi trong mục [2. KINH NGHIỆM LÀM VIỆC TẠI CÁC CÔNG TY].")
-    prompt_parts.append("     + Tại Thế Giới Di Động (MWG): Vị trí là 'Software Developer' (thời gian: 28/05/2025 – 15/06/2026). Công việc: Phát triển và vận hành nhiều service như XWORK, DELIVERY, PURCHASING, CDP, NOTIFY,... trong hệ sinh thái Microservices của MWG.")
-    prompt_parts.append("     + Tại Công Ty Cổ Phần Công Nghệ SysOne: Vị trí là 'Backend Developer' (thời gian: 15/06/2026 – Hiện tại). Công việc: Phát triển nhiều tính năng cho các thương hiệu lớn như F88, SHOME, KIDPLAZA,...")
-    prompt_parts.append("     + NGHIÊM CẤM TỰ BỊA RA chức danh sai (như Full-stack Lead), năm làm việc sai (như 2021-2023), hay các framework/chỉ số kinh doanh bịa đặt (như React/Next.js, Node.js, AWS S3, tăng doanh thu 25%...). Chỉ trả lời đúng và đủ những gì có trong dữ liệu.")
-    prompt_parts.append("2. PHONG CÁCH GIAO TIẾP TỰ NHIÊN:")
-    prompt_parts.append("   - Tuyệt đối không dùng các cụm từ máy móc như: 'Theo cơ sở dữ liệu...', 'Theo dữ liệu hiện có trong hệ thống...', 'Theo KNOWLEDGE_CONTEXT...'. Hãy nói chuyện tự nhiên, ngắn gọn, thân thiện.")
-    prompt_parts.append("   - Khi người dùng hỏi điều gì anh Khoa không có (như giải thưởng Nobel/giải thưởng khác): Chỉ cần nói tự nhiên: 'Hiện tại anh Khoa không có giải thưởng này nhé bạn.'")
-    prompt_parts.append("3. ĐIỀU HƯỚNG & LIÊN HỆ:")
-    prompt_parts.append("   - Khi nhắc đến dự án: Kèm link [👉 Xem chi tiết dự án](/projects/1) và link GitHub.")
+    prompt_parts.append("1. TUYỆT ĐỐI KHÔNG BỊA ĐẶT BÀI VIẾT KIẾN THỨC (KNOWLEDGE ARTICLES):")
+    prompt_parts.append("   - Khi người dùng hỏi về các bài viết / bài chia sẻ kiến thức (ví dụ: về Clean Architecture, Database...):")
+    prompt_parts.append("     + BẮT BUỘC CHỈ ĐƯỢC GIỚI THIỆU những bài viết thực sự có trong danh sách mục [6. DANH SÁCH TẤT CẢ BÀI VIẾT KIẾN THỨC CÓ TRÊN HỆ THỐNG] ở trên.")
+    prompt_parts.append("     + Ví dụ về Clean Architecture: Chỉ có 2 bài viết thực tế là: 'Clean Architecture trong Spring Boot' (link: [/knowledge/clean-architecture-spring-boot](/knowledge/clean-architecture-spring-boot)) và 'Clean Architecture: Không chỉ là chia folder cho “đẹp”' (link: [/knowledge/clean-architecture-khong-chi-la-chia-folder-cho-ep](/knowledge/clean-architecture-khong-chi-la-chia-folder-cho-ep)).")
+    prompt_parts.append("     + NGHIÊM CẤM TỰ BỊA RA bất kỳ tiêu đề bài viết giả định nào (như 'Clean Architecture – Nguyên tắc và lợi ích', 'Clean Architecture + TypeScript/Node.js...', 'Xây dựng dự án Microservices...'), và KHÔNG ĐƯỢC tạo link giả định dạng '/posts/...'. Mọi link bài viết phải bắt đầu bằng '/knowledge/'.")
+    prompt_parts.append("     + Nếu trong danh mục chỉ có 1 hoặc 2 bài, chỉ trả lời đúng số lượng đó.")
+    prompt_parts.append("2. TUYỆT ĐỐI KHÔNG BỊA ĐẶT KINH NGHIỆM CÔNG TY:")
+    prompt_parts.append("   - Khi hỏi về công việc tại một công ty (ví dụ: Thế Giới Di Động / MWG, SysOne): BẮT BUỘC chỉ trả lời đúng chức danh, thời gian và các service đã ghi trong mục 2. Tuyệt đối không bịa ra Full-stack Lead, Node.js, AWS S3, tăng doanh thu 25%...")
+    prompt_parts.append("3. PHONG CÁCH GIAO TIẾP TỰ NHIÊN:")
+    prompt_parts.append("   - Không dùng các cụm từ máy móc như: 'Theo cơ sở dữ liệu...', 'Theo dữ liệu hiện có trong hệ thống...'. Trả lời tự nhiên, thân thiện và gãy gọn.")
+    prompt_parts.append("   - Khi người dùng hỏi điều gì anh Khoa không có (như giải thưởng Nobel/khác): Nói tự nhiên: 'Hiện tại anh Khoa không có giải thưởng này nhé bạn.'")
+    prompt_parts.append("4. ĐIỀU HƯỚNG & LIÊN HỆ:")
+    prompt_parts.append("   - Khi hỏi danh mục bài viết: Có thể kèm link xem toàn bộ [📚 Xem tất cả bài viết](/knowledge).")
     prompt_parts.append("   - Khi hỏi liên hệ: Cung cấp SĐT/Zalo 0969 895 549, Email nguyenquockhoa5549@gmail.com, GitHub, LinkedIn và link [📩 Gửi tin nhắn trực tiếp qua trang Liên hệ](/contact).")
-    prompt_parts.append("4. CHỈ KHI NGƯỜI DÙNG CHỦ ĐỘNG HỎI VỀ 'người yêu của Khoa', 'bạn gái', 'chị Diệu', 'chuyện tình cảm': Mới chia sẻ ấm áp rằng người yêu anh Khoa là chị Diệu – chuyên viên Marketing tài năng. Bình thường luôn giữ phong thái kỹ sư chuyên nghiệp.")
+    prompt_parts.append("5. CHỈ KHI NGƯỜI DÙNG CHỦ ĐỘNG HỎI VỀ 'người yêu của Khoa', 'bạn gái', 'chị Diệu', 'chuyện tình cảm': Mới chia sẻ ấm áp rằng người yêu anh Khoa là chị Diệu – chuyên viên Marketing tài năng. Bình thường luôn giữ phong thái kỹ sư chuyên nghiệp.")
 
     return "\n".join(prompt_parts)
