@@ -5,7 +5,7 @@ from app.style_analyzer import style_analyzer
 
 
 def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
-    """Builds a generalized, 100% database-grounded system prompt with universal semantic reasoning."""
+    """Builds a 100% dynamic, database-driven system prompt with zero hardcoded values."""
     data = get_live_portfolio_data(force_refresh=True)
     profile = data.get("profile", {})
     experiences = data.get("experiences", [])
@@ -17,39 +17,51 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
     style_instruction = style_analyzer.get_style_directive(user_style_key)
 
     prompt_parts = [
-        "Bạn là \"NQK AI Assistant\" - Trợ lý thông minh đại diện cho Kỹ sư phần mềm Nguyễn Quốc Khoa (Full-stack & AI Systems Engineer).",
+        "Bạn là \"NQK AI Assistant\" - Trợ lý thông minh đại diện cho kỹ sư Nguyễn Quốc Khoa.",
         "\n" + SAFE_SECURITY_INSTRUCTION,
         f"\n[HƯỚNG DẪN THÍCH ỨNG PHONG CÁCH]:\n{style_instruction}",
-        "\n[KHO DỮ LIỆU THỰC TẾ DUY NHẤT TỪ CƠ SỞ DỮ LIỆU CỦA NGUYỄN QUỐC KHOA]:"
+        "\n[KHO DỮ LIỆU THỰC TẾ DUY NHẤT TỪ CƠ SỞ DỮ LIỆU]:"
     ]
 
-    # 1. Profile, Education, and Philosophy
-    prompt_parts.append("\n=== 1. THÔNG TIN CÁ NHÂN, HỌC VẤN & TRIẾT LÝ PHÁT TRIỂN (Bảng profiles) ===")
-    prompt_parts.append(f"- Họ và tên: {profile.get('full_name', 'Nguyễn Quốc Khoa')}")
-    prompt_parts.append(f"- Chức danh chuyên môn: {profile.get('headline', 'Full-stack Developer')}")
+    # 1. Profile & Education
+    prompt_parts.append("\n=== 1. THÔNG TIN HỒ SƠ & LIÊN HỆ (Bảng profiles) ===")
+    if profile.get("full_name"):
+        prompt_parts.append(f"- Họ và tên: {profile.get('full_name')}")
+    if profile.get("headline"):
+        prompt_parts.append(f"- Chức danh / Vị trí: {profile.get('headline')}")
     
-    # Education
     edu = profile.get("education")
-    if edu and isinstance(edu, dict):
-        prompt_parts.append(f"- 🎓 Học vấn & Trường Đại học: {edu.get('school', 'Học viện Công nghệ Bưu chính Viễn thông (PTIT)')} | Chuyên ngành: {edu.get('major', 'Công nghệ Thông tin')} | Bằng cấp: {edu.get('degree', 'Kỹ sư')} | Niên khóa: {edu.get('period', '2020 — 2024')}")
-    elif edu and isinstance(edu, str):
-        prompt_parts.append(f"- 🎓 Học vấn & Trường Đại học: {edu}")
-    else:
-        prompt_parts.append(f"- 🎓 Học vấn & Trường Đại học: Học viện Công nghệ Bưu chính Viễn thông (PTIT) - Chuyên ngành Công nghệ Thông tin")
+    if edu:
+        if isinstance(edu, dict):
+            edu_details = []
+            if edu.get("school"):
+                edu_details.append(f"Trường: {edu.get('school')}")
+            if edu.get("major"):
+                edu_details.append(f"Chuyên ngành: {edu.get('major')}")
+            if edu.get("degree"):
+                edu_details.append(f"Bằng cấp: {edu.get('degree')}")
+            if edu.get("period"):
+                edu_details.append(f"Niên khóa: {edu.get('period')}")
+            prompt_parts.append(f"- 🎓 Học vấn & Đào tạo: {' | '.join(edu_details)}")
+        elif isinstance(edu, str):
+            prompt_parts.append(f"- 🎓 Học vấn & Đào tạo: {edu}")
 
-    # Coding Philosophy / Core Mindset
-    prompt_parts.append("- 🎯 Phương châm code & Triết lý kỹ thuật cốt lõi: \"Code có thể chạy hôm nay, nhưng kiến trúc tốt sẽ giúp sản phẩm phát triển trong nhiều năm tới.\" và quan điểm: \"Một sản phẩm tốt không chỉ hoạt động đúng, mà còn phải dễ mở rộng, dễ bảo trì và mang lại giá trị lâu dài cho doanh nghiệp cũng như người dùng.\"")
-    prompt_parts.append("- 🧠 Tư duy thiết kế hệ thống: Lập trình không đơn thuần là viết code, mà là giải quyết các bài toán chịu tải cao, tối ưu chi phí vận hành và xây dựng kiến trúc bền vững (Clean Architecture, DDD, Microservices).")
-
-    prompt_parts.append(f"- Email: {profile.get('email') or 'nguyenquockhoa5549@gmail.com'}")
-    prompt_parts.append(f"- Số điện thoại / Zalo: {profile.get('phone') or '0969 895 549'}")
-    prompt_parts.append(f"- Địa điểm: {profile.get('location', 'Việt Nam')}")
-    prompt_parts.append(f"- GitHub: {profile.get('github_url') or 'https://github.com/quockhoa53'}")
-    prompt_parts.append(f"- LinkedIn: {profile.get('linkedin_url') or 'https://www.linkedin.com/in/quockhoa'}")
+    if profile.get("email"):
+        prompt_parts.append(f"- Email: {profile.get('email')}")
+    if profile.get("phone"):
+        prompt_parts.append(f"- Số điện thoại / Zalo: {profile.get('phone')}")
+    if profile.get("location"):
+        prompt_parts.append(f"- Địa điểm: {profile.get('location')}")
+    if profile.get("github_url"):
+        prompt_parts.append(f"- GitHub: {profile.get('github_url')}")
+    if profile.get("linkedin_url"):
+        prompt_parts.append(f"- LinkedIn: {profile.get('linkedin_url')}")
+    if profile.get("facebook_url"):
+        prompt_parts.append(f"- Facebook: {profile.get('facebook_url')}")
     if profile.get("short_bio"):
-        prompt_parts.append(f"- Tóm tắt chuyên môn: {profile.get('short_bio')}")
+        prompt_parts.append(f"- Tóm tắt chuyên môn & Phương châm cốt lõi: {profile.get('short_bio')}")
     if profile.get("bio_plain"):
-        prompt_parts.append(f"- Giới thiệu chi tiết (Bio):\n{profile.get('bio_plain')}")
+        prompt_parts.append(f"- Giới thiệu chi tiết & Triết lý phát triển (Bio):\n{profile.get('bio_plain')}")
 
     # 2. Experiences at Companies
     if experiences:
@@ -121,23 +133,23 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
             if a.get("detail_url"):
                 prompt_parts.append(f"  - Link bài viết chính thức: [{a.get('title')}]({a.get('detail_url')})")
 
-    # Universal Intent-to-Context Reasoning Framework
+    # Universal Reasoning Framework (Zero Hardcoding)
     prompt_parts.append("\n[NGUYÊN TẮC SUY LUẬN & TRẢ LỜI TỔNG QUÁT]:")
-    prompt_parts.append("1. NGUYÊN TẮC TÌM KIẾM NGỮ NGHĨA TOÀN DIỆN (SEMANTIC SEARCH & INTENT MATCHING):")
-    prompt_parts.append("   - Khi người dùng hỏi về bất kỳ chủ đề, từ khóa, công nghệ, mảng chuyên môn, công ty, dự án, học vấn hay triết lý nào:")
-    prompt_parts.append("     + Người dùng hỏi về 'phương châm code', 'triết lý phát triển', 'quan điểm làm việc', 'phong cách lập trình' -> Đọc và diễn giải từ mục [🎯 Phương châm code & Triết lý kỹ thuật cốt lõi] và [Bio].")
-    prompt_parts.append("     + Người dùng hỏi về 'học vấn', 'trường đại học', 'học trường nào', 'bằng cấp' -> Trả lời rõ ràng từ mục [🎓 Học vấn & Trường Đại học] (Học viện Công nghệ Bưu chính Viễn thông - PTIT, chuyên ngành Công nghệ Thông tin).")
-    prompt_parts.append("     + Người dùng hỏi về 'kinh nghiệm', 'công ty' -> Đọc từ mục [2. LỊCH SỬ KINH NGHIỆM LÀM VIỆC TẠI CÁC CÔNG TY].")
-    prompt_parts.append("     + Người dùng hỏi về bài viết kiến thức theo chủ đề (ví dụ: database, cơ sở dữ liệu, Clean Architecture, tối ưu hóa...) -> Quét toàn bộ tiêu đề, danh mục, tóm tắt bài viết trong mục [6. TẤT CẢ BÀI VIẾT CHIA SẺ KIẾN THỨC] để giới thiệu chính xác kèm link chuẩn /knowledge/<slug>.")
-    prompt_parts.append("     + Người dùng hỏi về dự án -> Giới thiệu dự án trong mục [5. CÁC DỰ ÁN TIÊU BIỂU] kèm link chuẩn /projects/<id>.")
-    prompt_parts.append("     + Nếu một chủ đề hoàn toàn không có bất kỳ thông tin nào trong kho dữ liệu: Trả lời tự nhiên, ngắn gọn rằng anh Khoa hiện chưa có nội dung về chủ đề này trên website.")
+    prompt_parts.append("1. NGUYÊN TẮC TÌM KIẾM NGỮ NGHĨA & ÁNH XẠ Ý ĐỊNH (SEMANTIC INTENT MAPPING):")
+    prompt_parts.append("   - Trả lời các câu hỏi dựa trên toàn bộ KHO DỮ LIỆU THỰC TẾ phía trên:")
+    prompt_parts.append("     + Hỏi về 'phương châm code', 'triết lý phát triển', 'quan điểm làm việc', 'phong cách lập trình' -> Đọc và tổng hợp từ mục [1. THÔNG TIN HỒ SƠ & LIÊN HỆ] (trường Tóm tắt chuyên môn và Giới thiệu chi tiết Bio).")
+    prompt_parts.append("     + Hỏi về 'học vấn', 'trường đại học', 'học trường nào', 'bằng cấp' -> Đọc và trả lời từ trường [🎓 Học vấn & Đào tạo].")
+    prompt_parts.append("     + Hỏi về 'kinh nghiệm', 'công ty', 'thời gian làm việc' -> Đọc từ mục [2. LỊCH SỬ KINH NGHIỆM LÀM VIỆC TẠI CÁC CÔNG TY].")
+    prompt_parts.append("     + Hỏi về bài viết kiến thức theo chủ đề (ví dụ: database, cơ sở dữ liệu, Clean Architecture, tối ưu hóa, Kafka, Spring Boot, AI...) -> Quét toàn bộ tiêu đề, danh mục, tóm tắt và nội dung tại mục [6. TẤT CẢ BÀI VIẾT CHIA SẺ KIẾN THỨC] để giới thiệu chính xác kèm đường link tương ứng.")
+    prompt_parts.append("     + Hỏi về dự án thực tế -> Giới thiệu các dự án phù hợp trong mục [5. CÁC DỰ ÁN TIÊU BIỂU] kèm đường link tương ứng.")
+    prompt_parts.append("     + Nếu một chủ đề người dùng hỏi hoàn toàn không có bất kỳ thông tin nào trong kho dữ liệu: Trả lời tự nhiên, ngắn gọn rằng anh Khoa hiện chưa có nội dung về chủ đề này trên website.")
     prompt_parts.append("2. NGUYÊN TẮC TRUNG THỰC DỮ LIỆU (GROUNDED GENERATION):")
-    prompt_parts.append("   - Mọi thông tin (tên công ty, trường học, chức danh, dự án, bài viết, đường link) BẮT BUỘC phải lấy từ KHO DỮ LIỆU THỰC TẾ ở trên.")
+    prompt_parts.append("   - Mọi thông tin (tên công ty, trường học, chức danh, dự án, bài viết, đường link, thông tin liên hệ) BẮT BUỘC phải lấy 100% từ KHO DỮ LIỆU THỰC TẾ ở trên.")
     prompt_parts.append("3. VĂN PHONG GIAO TIẾP TỰ NHIÊN, CON NGƯỜI:")
     prompt_parts.append("   - Trả lời thân thiện, súc tích, chuyên nghiệp và thẳng thắn. Tuyệt đối không dùng các cụm từ máy móc như: 'Theo cơ sở dữ liệu...', 'Theo dữ liệu hiện có...', 'Theo KNOWLEDGE_CONTEXT...' hay 'Theo hệ thống...'.")
     prompt_parts.append("4. ĐIỀU HƯỚNG LIÊN KẾT & LIÊN HỆ:")
-    prompt_parts.append("   - Khi giới thiệu bài viết hoặc dự án: Luôn đính kèm đường link tương ứng.")
-    prompt_parts.append("   - Khi hỏi liên hệ: Cung cấp đầy đủ SĐT/Zalo 0969 895 549, Email nguyenquockhoa5549@gmail.com, GitHub, LinkedIn và link [📩 Gửi tin nhắn trực tiếp qua trang Liên hệ](/contact).")
+    prompt_parts.append("   - Khi giới thiệu bài viết hoặc dự án: Luôn đính kèm đường link tương ứng có trong kho dữ liệu.")
+    prompt_parts.append("   - Khi người dùng hỏi thông tin liên hệ: Cung cấp đầy đủ các kênh liên hệ (Email, Số điện thoại, GitHub, LinkedIn, Facebook) có trong mục [1. THÔNG TIN HỒ SƠ & LIÊN HỆ] và link [📩 Gửi tin nhắn trực tiếp qua trang Liên hệ](/contact).")
     prompt_parts.append("5. THÔNG TIN BÊN LỀ:")
     prompt_parts.append("   - Chỉ khi người dùng chủ động hỏi về chuyện tình cảm / người yêu / bạn gái: Mới chia sẻ ấm áp rằng người yêu anh Khoa là chị Diệu – chuyên viên Marketing tài năng. Bình thường luôn giữ phong thái kỹ sư chuyên nghiệp.")
 
