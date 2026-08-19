@@ -34,7 +34,7 @@ class ChatResponsePayload(BaseModel):
 
 @router.get("/health")
 def health():
-    data = get_live_portfolio_data()
+    data = get_live_portfolio_data(force_refresh=True)
     return {
         "status": "healthy",
         "provider": settings.LLM_PROVIDER,
@@ -42,7 +42,46 @@ def health():
         "has_gemini_key": bool(settings.GEMINI_API_KEY),
         "has_groq_key": bool(settings.GROQ_API_KEY),
         "db_connected": bool(data.get("profile")),
+        "ai_facts_count": len(data.get("ai_facts", [])),
         "active_sessions_count": len(session_manager.sessions),
+    }
+
+
+@router.get("/debug-db")
+def debug_db():
+    import traceback
+    from app.database import fetch_from_postgres, fetch_from_rest_api, get_db_connection
+    
+    postgres_err = None
+    pg_data = None
+    try:
+        conn = get_db_connection()
+        if not conn:
+            postgres_err = "get_db_connection returned None"
+        else:
+            conn.close()
+            pg_data = fetch_from_postgres()
+    except Exception as e:
+        postgres_err = traceback.format_exc()
+
+    rest_err = None
+    rest_data = None
+    try:
+        rest_data = fetch_from_rest_api()
+    except Exception as e:
+        rest_err = traceback.format_exc()
+
+    return {
+        "db_host": settings.DB_HOST,
+        "db_name": settings.DB_NAME,
+        "db_user": settings.DB_USER,
+        "portfolio_be_url": settings.PORTFOLIO_BE_URL,
+        "postgres_error": postgres_err,
+        "has_pg_profile": bool(pg_data and pg_data.get("profile")),
+        "pg_ai_facts": pg_data.get("ai_facts") if pg_data else [],
+        "rest_error": rest_err,
+        "has_rest_profile": bool(rest_data and rest_data.get("profile")),
+        "rest_ai_facts": rest_data.get("ai_facts") if rest_data else [],
     }
 
 
