@@ -64,7 +64,7 @@ def fetch_from_postgres() -> Optional[Dict[str, Any]]:
         # 1. Profile (Table: profiles)
         cursor.execute("""
             SELECT id, full_name, headline, bio, short_bio, email, phone, location, 
-                   github_url, linkedin_url, facebook_url, avatar_url
+                   github_url, linkedin_url, facebook_url, avatar_url, education
             FROM profiles LIMIT 1;
         """)
         profile = cursor.fetchone() or {}
