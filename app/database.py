@@ -207,6 +207,31 @@ def fetch_from_postgres() -> Optional[Dict[str, Any]]:
         except Exception:
             ai_facts = []
 
+        # 8. Resumes / CV (Table: resumes)
+        try:
+            cursor.execute("""
+                SELECT id, title, target_role, file_url, file_name, file_size, summary, is_primary, is_active, download_count
+                FROM resumes
+                WHERE is_active = TRUE
+                ORDER BY is_primary DESC, updated_at DESC;
+            """)
+            raw_resumes = cursor.fetchall() or []
+            resumes = []
+            for r in raw_resumes:
+                rid = r.get("id")
+                resumes.append({
+                    "id": rid,
+                    "title": r.get("title"),
+                    "target_role": r.get("target_role", "GENERAL"),
+                    "file_url": r.get("file_url"),
+                    "file_name": r.get("file_name"),
+                    "summary": r.get("summary", ""),
+                    "is_primary": r.get("is_primary", False),
+                    "download_url": f"{settings.FRONTEND_URL}/resumes/{rid}",
+                })
+        except Exception:
+            resumes = []
+
         cursor.close()
         conn.close()
 
@@ -218,6 +243,7 @@ def fetch_from_postgres() -> Optional[Dict[str, Any]]:
             "projects": projects,
             "knowledge_articles": articles,
             "ai_facts": ai_facts,
+            "resumes": resumes,
         }
 
     except Exception as e:
@@ -386,6 +412,29 @@ def fetch_from_rest_api() -> Dict[str, Any]:
                     })
     except Exception as e:
         logger.warning(f"Failed to fetch ai_facts from REST API: {e}")
+
+    # 8. Resumes / CV
+    result["resumes"] = []
+    try:
+        res = requests.get(f"{base_url}/resumes", timeout=30)
+        if res.status_code == 200:
+            payload = res.json()
+            raw_resumes = payload.get("data", payload)
+            if isinstance(raw_resumes, list):
+                for r in raw_resumes:
+                    rid = r.get("id")
+                    result["resumes"].append({
+                        "id": rid,
+                        "title": r.get("title"),
+                        "target_role": r.get("targetRole", "GENERAL") or r.get("target_role", "GENERAL"),
+                        "file_url": r.get("fileUrl") or r.get("file_url"),
+                        "file_name": r.get("fileName") or r.get("file_name"),
+                        "summary": r.get("summary", ""),
+                        "is_primary": r.get("isPrimary", False) or r.get("is_primary", False),
+                        "download_url": f"{settings.FRONTEND_URL}/resumes/{rid}",
+                    })
+    except Exception as e:
+        logger.warning(f"Failed to fetch resumes from REST API: {e}")
 
     return result
 

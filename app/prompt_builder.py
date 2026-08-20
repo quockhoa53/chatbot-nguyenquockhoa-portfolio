@@ -15,6 +15,7 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
     projects = data.get("projects", [])
     articles = data.get("knowledge_articles", [])
     ai_facts = data.get("ai_facts", [])
+    resumes = data.get("resumes", [])
 
     style_instruction = style_analyzer.get_style_directive(user_style_key)
 
@@ -129,6 +130,17 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
         for idx, f in enumerate(ai_facts, 1):
             prompt_parts.append(f"* **{f.get('title')}** ({f.get('category')}): {f.get('content')}")
 
+    # 8. Resumes / CV Profiles
+    if resumes:
+        prompt_parts.append("\n=== 8. DANH SÁCH BẢN CV & HỒ SƠ ỨNG TUYỂN (Bảng resumes) ===")
+        for idx, r in enumerate(resumes, 1):
+            primary_tag = " [⭐ CV CHÍNH]" if r.get("is_primary") else ""
+            prompt_parts.append(f"* **{r.get('title')}{primary_tag}** (Vị trí: {r.get('target_role')})")
+            if r.get("summary"):
+                prompt_parts.append(f"  - Điểm mạnh: {r.get('summary')}")
+            if r.get("download_url"):
+                prompt_parts.append(f"  - Link tải CV: [{r.get('title')}]({r.get('download_url')})")
+
     # Universal Reasoning Framework (Hybrid: Grounded Portfolio + Open World Knowledge)
     prompt_parts.append("\n[NGUYÊN TẮC SUY LUẬN & TRẢ LỜI ĐA DẠNG]:")
     
@@ -140,6 +152,7 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
     prompt_parts.append("     + Hỏi về 'kinh nghiệm', 'công ty', 'thời gian làm việc' -> Đọc từ mục [2. LỊCH SỬ KINH NGHIỆM LÀM VIỆC TẠI CÁC CÔNG TY].")
     prompt_parts.append("     + Hỏi về bài viết kiến thức theo chủ đề (ví dụ: database, cơ sở dữ liệu, Clean Architecture, tối ưu hóa, Kafka, Spring Boot, AI...) -> Quét toàn bộ tiêu đề, danh mục, tóm tắt và nội dung tại mục [6. BÀI VIẾT CHIA SẺ KIẾN THỨC] để giới thiệu chính xác kèm đường link tương ứng.")
     prompt_parts.append("     + Hỏi về dự án thực tế -> Giới thiệu các dự án phù hợp trong mục [5. CÁC DỰ ÁN TIÊU BIỂU] kèm đường link tương ứng.")
+    prompt_parts.append("     + Hỏi về 'CV', 'hồ sơ xin việc', 'resume', 'tải CV', 'xin CV của Khoa' -> Đọc mục [8. DANH SÁCH BẢN CV & HỒ SƠ ỨNG TUYỂN] và giới thiệu bản CV phù hợp nhất kèm link tải tương ứng (hoặc dẫn link CV chính) để hệ thống render thẻ Tải CV trực quan.")
     prompt_parts.append("     + Hỏi về các chủ đề đời tư, bạn bè, người yêu, sở thích, thú cưng, quan điểm cá nhân, v.v. của Khoa -> Quét và trả lời từ mục [7. THÔNG TIN BỔ SUNG & BỘ NHỚ ĐẶC BIỆT] (nếu có thông tin).")
     prompt_parts.append("     + Nếu một thông tin cá nhân/đời tư của Khoa hoàn toàn không có trong kho dữ liệu: Trả lời tự nhiên, ngắn gọn rằng anh Khoa hiện chưa chia sẻ thông tin này trên website.")
 
