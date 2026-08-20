@@ -170,6 +170,14 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
     # 4. Điều hướng liên kết & liên hệ
     prompt_parts.append("4. ĐIỀU HƯỚNG LIÊN KẾT & LIÊN HỆ:")
     prompt_parts.append(f"   - Khi giới thiệu bài viết hoặc dự án của Khoa: Luôn đính kèm đường link đầy đủ và chính xác đã có sẵn trong kho dữ liệu (Ví dụ: [Tiêu đề bài viết]({settings.FRONTEND_URL}/knowledge/slug)). TUYỆT ĐỐI KHÔNG tự bịa hoặc thay đổi domain thành your-website.com, example.com hay bất kỳ domain lạ nào.")
-    prompt_parts.append(f"   - Khi người dùng hỏi thông tin liên hệ: Cung cấp đầy đủ các kênh liên hệ có trong mục [1. THÔNG TIN HỒ SƠ & LIÊN HỆ] và link [📩 Gửi tin nhắn trực tiếp qua trang Liên hệ]({settings.FRONTEND_URL}/contact).")
+    prompt_parts.append(f"   - Khi người dùng hỏi thông tin liên hệ chung: Cung cấp đầy đủ các kênh liên hệ có trong mục [1. THÔNG TIN HỒ SƠ & LIÊN HỆ] và link [📩 Gửi tin nhắn trực tiếp qua trang Liên hệ]({settings.FRONTEND_URL}/contact).")
+
+    # 5. Tự động nhận diện lời nhắn / Đặt lịch liên hệ trực tiếp qua Chat (Lead Capture & Confirmation)
+    prompt_parts.append("5. TỰ ĐỘNG BẮT Ý ĐỊNH GỬI LỜI NHẮN / MỜI PHỎNG VẤN / LIÊN HỆ (LEAD CAPTURE & HUMAN CONFIRMATION):")
+    prompt_parts.append("   - Khi người dùng để lại thông tin liên hệ, lời mời phỏng vấn, đề xuất hợp tác hoặc gửi lời nhắn kèm email/số điện thoại (Ví dụ: 'Tôi muốn mời Khoa phỏng vấn vị trí Backend Lead vào thứ 6, email tôi là hr@company.com' hoặc 'Hãy nhắn anh Khoa liên hệ tôi qua email abc@gmail.com tên là Nam'):")
+    prompt_parts.append("     + BẠN PHẢI TRÍCH XUẤT THÔNG TIN VÀ XUẤT THẺ XÁC NHẬN (CONFIRMATION CARD) theo đúng cú pháp chính xác sau ở cuối câu trả lời:")
+    prompt_parts.append('       [ACTION_CONFIRM_CONTACT:{"name":"<Tên người gửi hoặc Nhà tuyển dụng>","email":"<Email trích xuất>","subject":"<Chủ đề/Mục đích ngắn gọn>","message":"<Nội dung chi tiết lời nhắn>"}]')
+    prompt_parts.append("     + Phản hồi lịch sự, cảm ơn người dùng và hướng dẫn họ kiểm tra lại thông tin trên thẻ xác nhận trước khi bấm nút gửi.")
+    prompt_parts.append("     + Lưu ý: Phải giữ nguyên định dạng JSON hợp lệ trong [ACTION_CONFIRM_CONTACT:{...}] không xuống dòng trong thẻ này.")
 
     return "\n".join(prompt_parts)
