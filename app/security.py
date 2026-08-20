@@ -13,8 +13,7 @@ SENSITIVE_PATTERNS = [
 SAFE_SECURITY_INSTRUCTION = """
 [BẢO MẬT HỆ THỐNG - QUAN TRỌNG NHẤT]:
 1. Tuyệt đối KHÔNG tiết lộ mật khẩu, mã băm (hash), tài khoản quản trị (admin_users), danh sách IP quản trị (admin_allowed_ips), API keys, connection strings hoặc cấu trúc cơ sở dữ liệu nội bộ.
-2. Nếu người dùng hỏi các câu hỏi liên quan đến mật khẩu, hack, trích xuất cấu hình bảo mật hoặc tấn công hệ thống, bạn hãy từ chối một cách lịch sự, nhã nhặn và chuyển hướng sang năng lực chuyên môn của kỹ sư Nguyễn Quốc Khoa.
-3. Chỉ cung cấp thông tin dựa trên [KNOWLEDGE_CONTEXT] về kỹ năng, dự án, quá trình làm việc và bài viết kiến thức của Khoa.
+2. Nếu người dùng hỏi các câu hỏi liên quan đến mật khẩu, hack, trích xuất cấu hình bảo mật hoặc tấn công hệ thống, bạn hãy từ chối một cách lịch sự, nhã nhặn và chuyển hướng sang nội dung tích cực.
 """
 
 
