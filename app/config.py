@@ -44,7 +44,7 @@ class Settings:
     # Text-to-Speech Settings (Default: "edge-tts" for 100% Free Unlimited Native Vietnamese Voice)
     TTS_PROVIDER: str = os.getenv("TTS_PROVIDER", "edge-tts").lower()
     EDGE_TTS_VOICE: str = os.getenv("EDGE_TTS_VOICE", "vi-VN-HoaiMyNeural").strip()  # vi-VN-HoaiMyNeural (Nữ miền Nam) hoặc vi-VN-NamMinhNeural (Nam miền Nam)
-    EDGE_TTS_RATE: str = os.getenv("EDGE_TTS_RATE", "+10%").strip()
+    EDGE_TTS_RATE: str = os.getenv("EDGE_TTS_RATE", "-2%").strip()
 
     # ElevenLabs Text-to-Speech Settings (Alternative Cloud Provider)
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "").strip()
