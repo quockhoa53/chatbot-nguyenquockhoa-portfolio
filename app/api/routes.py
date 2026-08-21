@@ -93,9 +93,9 @@ async def text_to_speech_endpoint(payload: TTSRequestPayload):
         "text": clean_text,
         "model_id": settings.ELEVENLABS_MODEL_ID,
         "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.8,
-            "style": 0.2,
+            "stability": 0.32,
+            "similarity_boost": 0.82,
+            "style": 0.45,
             "use_speaker_boost": True,
         },
     }
