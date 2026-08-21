@@ -1,7 +1,11 @@
 import asyncio
+import hashlib
+import io
 import logging
+import re
 from typing import List, Optional
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+import httpx
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -14,6 +18,9 @@ from app.style_analyzer import STYLE_PROMPT_DIRECTIVES, style_analyzer
 logger = logging.getLogger("routes")
 router = APIRouter(prefix="/api")
 
+# In-memory audio cache to save API quota (MD5 -> bytes)
+_audio_cache = {}
+
 
 class IncomingChatMessage(BaseModel):
     role: str  # 'user' or 'assistant'
@@ -21,9 +28,9 @@ class IncomingChatMessage(BaseModel):
 
 
 class ChatRequestPayload(BaseModel):
-    session_id: Optional[str] = None
+    session_id: str
+    message: Optional[str] = None
     messages: Optional[List[IncomingChatMessage]] = None
-    message: Optional[str] = None  # Single message convenience
 
 
 class ChatResponsePayload(BaseModel):
@@ -32,6 +39,86 @@ class ChatResponsePayload(BaseModel):
     user_style: str
     style_description: str
     model: str
+
+
+class TTSRequestPayload(BaseModel):
+    text: str
+    voice_id: Optional[str] = None
+
+
+def clean_text_for_tts(raw_text: str) -> str:
+    """Prepares text for natural speech synthesis by removing code blocks, links, thinking tags, and action payloads."""
+    if not raw_text:
+        return ""
+    text = re.sub(r"<think>[\s\S]*?</think>", "", raw_text, flags=re.IGNORECASE)
+    text = re.sub(r"```[\s\S]*?```", "", text)
+    text = re.sub(r"`[^`]+`", "", text)
+    text = re.sub(r"\[ACTION_CONFIRM_CONTACT:[\s\S]*?\]", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    text = re.sub(r"[*_#~>`]", "", text)
+    text = re.sub(r"https?://\S+", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+@router.post("/tts")
+async def text_to_speech_endpoint(payload: TTSRequestPayload):
+    """ElevenLabs Neural TTS (Adam - Trend voice) with in-memory caching and graceful client fallback."""
+    clean_text = clean_text_for_tts(payload.text)
+    if not clean_text:
+        raise HTTPException(status_code=400, detail="Văn bản cần đọc không hợp lệ.")
+
+    # Limit text length per request to 500 characters to conserve quota
+    if len(clean_text) > 500:
+        clean_text = clean_text[:497] + "..."
+
+    # Check cache first
+    cache_key = hashlib.md5(f"{clean_text}_{payload.voice_id or settings.ELEVENLABS_VOICE_ID}".encode("utf-8")).hexdigest()
+    if cache_key in _audio_cache:
+        logger.info(f"🔊 [TTS Cache Hit] Returning cached audio for '{clean_text[:30]}...'")
+        return Response(content=_audio_cache[cache_key], media_type="audio/mpeg")
+
+    if not settings.ELEVENLABS_API_KEY:
+        raise HTTPException(status_code=503, detail="FALLBACK_BROWSER_TTS")
+
+    voice_id = payload.voice_id or settings.ELEVENLABS_VOICE_ID
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+
+    headers = {
+        "xi-api-key": settings.ELEVENLABS_API_KEY,
+        "Content-Type": "application/json",
+    }
+
+    body = {
+        "text": clean_text,
+        "model_id": settings.ELEVENLABS_MODEL_ID,
+        "voice_settings": {
+            "stability": 0.5,
+            "similarity_boost": 0.8,
+            "style": 0.2,
+            "use_speaker_boost": True,
+        },
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(url, json=body, headers=headers)
+            if resp.status_code == 200:
+                audio_bytes = resp.content
+                # Cache up to 100 recent audio snippets
+                if len(_audio_cache) > 100:
+                    _audio_cache.pop(next(iter(_audio_cache)))
+                _audio_cache[cache_key] = audio_bytes
+                logger.info(f"🔊 [TTS Success] Generated {len(audio_bytes)} bytes audio for '{clean_text[:30]}...'")
+                return Response(content=audio_bytes, media_type="audio/mpeg")
+            else:
+                logger.warning(f"ElevenLabs TTS failed ({resp.status_code}): {resp.text}")
+                raise HTTPException(status_code=resp.status_code, detail="FALLBACK_BROWSER_TTS")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"ElevenLabs request error: {e}")
+        raise HTTPException(status_code=500, detail="FALLBACK_BROWSER_TTS")
 
 
 @router.get("/health")

@@ -41,6 +41,11 @@ class Settings:
         "http://localhost:5173,http://localhost:3000,https://nguyenquockhoaportfolio.vercel.app",
     ).strip()
 
+    # ElevenLabs Text-to-Speech Settings
+    ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "").strip()
+    ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB").strip()  # Adam (Trend voice)
+    ELEVENLABS_MODEL_ID: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2").strip()
+
     # Session / Cache Settings
     SESSION_TTL_HOURS: int = 24
     KNOWLEDGE_CACHE_TTL_MINUTES: int = 5
