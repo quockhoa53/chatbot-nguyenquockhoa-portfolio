@@ -103,6 +103,14 @@ async def text_to_speech_endpoint(payload: TTSRequestPayload):
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
             resp = await client.post(url, json=body, headers=headers)
+            
+            # If library voice requires paid subscription (400 or 402), seamlessly fallback to best pre-made female voice
+            if resp.status_code in [400, 402] and voice_id not in ["cgSgspJ2msm6clMCkdW9", "EXAVITQu4vr4xnSDxMaL"]:
+                fallback_voice = "cgSgspJ2msm6clMCkdW9"  # Jessica (Clear & Natural Female)
+                fallback_url = f"https://api.elevenlabs.io/v1/text-to-speech/{fallback_voice}"
+                logger.info(f"🔊 Library voice '{voice_id}' requires paid plan, auto-falling back to pre-made voice '{fallback_voice}'")
+                resp = await client.post(fallback_url, json=body, headers=headers)
+
             if resp.status_code == 200:
                 audio_bytes = resp.content
                 # Cache up to 100 recent audio snippets

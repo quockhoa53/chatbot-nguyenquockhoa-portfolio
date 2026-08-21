@@ -43,7 +43,7 @@ class Settings:
 
     # ElevenLabs Text-to-Speech Settings
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "").strip()
-    ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB").strip()  # Adam (Trend voice)
+    ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "x4KAhuXs2G8TfK9Zr7Q4").strip()  # Cam Hong - HCM Local (Fallback to Jessica)
     ELEVENLABS_MODEL_ID: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2").strip()
 
     # Session / Cache Settings
