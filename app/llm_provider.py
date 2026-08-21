@@ -157,9 +157,12 @@ class LLMProvider:
 
         # If completely unavailable, return a friendly server busy response
         return (
-            "Xin lỗi bạn, hệ thống AI đang tiếp nhận lưu lượng cao nên tạm thời phản hồi chậm. "
-            "Bạn vui lòng gửi lại tin nhắn sau vài giây hoặc liên hệ trực tiếp với anh Khoa qua "
-            "email **nguyenquockhoa5549@gmail.com** / Zalo **0969895549** nhé!"
+            "Dạ xin lỗi bạn! Hiện tại kết nối AI đang bị gián đoạn hoặc quá tải trong giây lát. 🙏\n\n"
+            "Bạn vui lòng **thử gửi lại tin nhắn sau vài giây**, hoặc liên hệ trực tiếp với anh Khoa qua:\n"
+            "• 📧 Email: **nguyenquockhoa5549@gmail.com**\n"
+            "• 📱 Hotline / Zalo: **0969 895 549**\n"
+            "• 📝 [Mở Form Liên Hệ Trực Tiếp](/contact)\n\n"
+            "Rất cảm ơn sự thông cảm của bạn! ✨"
         )
 
     def stream_response(
