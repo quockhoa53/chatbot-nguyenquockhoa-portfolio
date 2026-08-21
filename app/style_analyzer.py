@@ -101,22 +101,43 @@ class UserStyleAnalyzer:
             except Exception as e:
                 logger.error(f"[StyleAnalyzer] Groq init error: {e}")
 
+    def classify_heuristics(self, text: str) -> Optional[str]:
+        """Fast regex-based heuristic classifier taking 0ms and consuming 0 API quota."""
+        t = text.lower()
+        if any(w in t for w in ["tuyển dụng", "phỏng vấn", "hr", "recruiter", "headhunt", "offer", "ứng tuyển", "tìm ứng viên"]):
+            return "nha_tuyen_dung"
+        if any(w in t for w in ["báo giá", "chi phí", "thuê làm", "hợp đồng", "dự án e-commerce", "triển khai web", "hợp tác dự án", "cần làm web"]):
+            return "khach_hang_doanh_nghiep"
+        if any(w in t for w in ["clean architecture", "microservices", "kafka", "redis", "concurrency", "indexing", "thread pool", "acid", "sharding", "trade-off", "system design"]):
+            return "chuyen_gia_ky_thuat"
+        if any(w in t for w in ["ngắn gọn", "vắn tắt", "tóm tắt nhanh", "bullet point"]):
+            return "ngan_gon_xuc_tich"
+        if any(w in t for w in ["học lập trình", "lộ trình", "chia sẻ kinh nghiệm", "tài liệu học", "lời khuyên"]):
+            return "nguoi_hoc_hoi_chia_se"
+        return None
+
     def classify_dialogue_with_llm(self, messages: List[Dict[str, str]]) -> str:
-        """Sends the entire conversation dialogue to the LLM to classify user persona."""
+        """Sends dialogue to LLM only when heuristics cannot determine persona."""
         if not messages:
             return "trung_tinh"
 
-        # Format full dialogue transcript
+        # Check heuristics on last 2 user messages first
+        for m in reversed(messages):
+            if m.get("role") == "user":
+                h_style = self.classify_heuristics(m.get("content", ""))
+                if h_style:
+                    return h_style
+
+        # Format concise dialogue transcript for LLM
         transcript_lines = []
-        for m in messages:
-            speaker = "Người dùng (User)" if m.get("role") == "user" else "Trợ lý AI (Assistant)"
-            transcript_lines.append(f"{speaker}: {m.get('content', '')}")
+        for m in messages[-4:]:
+            speaker = "User" if m.get("role") == "user" else "AI"
+            transcript_lines.append(f"{speaker}: {m.get('content', '')[:100]}")
         
         dialogue_text = "\n".join(transcript_lines)
         analysis_prompt = (
-            f"Dưới đây là toàn bộ đoạn hội thoại:\n"
-            f"\"\"\"\n{dialogue_text}\n\"\"\"\n\n"
-            f"Dựa trên toàn bộ hội thoại trên, hãy phân loại phong cách của Người dùng."
+            f"Hội thoại:\n\"\"\"\n{dialogue_text}\n\"\"\"\n"
+            f"Phân loại phong cách User (trả về đúng 1 nhãn):"
         )
 
         detected_label = "trung_tinh"
@@ -128,21 +149,19 @@ class UserStyleAnalyzer:
                     analysis_prompt,
                     generation_config=genai.types.GenerationConfig(
                         temperature=0.1,
-                        max_output_tokens=30,
+                        max_output_tokens=20,
                     ),
                 )
                 raw_text = response.text.strip().lower()
                 for key in STYLE_PROMPT_DIRECTIVES:
                     if key in raw_text:
-                        detected_label = key
-                        break
-                return detected_label
+                        return key
             except Exception as e:
-                logger.error(f"[StyleAnalyzer] Gemini classification error: {e}")
+                logger.warning(f"[StyleAnalyzer] Gemini classification error: {e}")
 
-        # 2. Try Groq classifier
+        # 2. Try Groq classifier with zero retries to avoid wasting rate limits
         if self.groq_client:
-            for model_candidate in ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "groq/compound-mini"]:
+            for model_candidate in ["openai/gpt-oss-20b", "groq/compound-mini", "openai/gpt-oss-120b"]:
                 try:
                     res = self.groq_client.chat.completions.create(
                         model=model_candidate,
@@ -151,36 +170,46 @@ class UserStyleAnalyzer:
                             {"role": "user", "content": analysis_prompt},
                         ],
                         temperature=0.1,
-                        max_tokens=30,
+                        max_tokens=20,
                     )
                     raw_text = res.choices[0].message.content.strip().lower()
                     for key in STYLE_PROMPT_DIRECTIVES:
                         if key in raw_text:
-                            detected_label = key
-                            break
-                    return detected_label
+                            return key
                 except Exception as e:
                     logger.warning(f"[StyleAnalyzer] Groq classifier model {model_candidate} failed: {e}")
                     continue
 
-            return "trung_tinh"
+        return "trung_tinh"
 
     async def analyze_style_async(self, session_id: str, messages: List[Dict[str, str]]):
-        """Asynchronous background worker feeding the entire dialogue into the LLM classifier."""
+        """Asynchronous background worker with smart throttling to protect LLM rate limits."""
         try:
-            if not messages:
+            if not messages or len(messages) > 6:
+                # Already past early phase, no need to re-classify repeatedly
                 return
 
-            # Run LLM classification in background thread pool without blocking event loop
-            detected_key = await asyncio.to_thread(self.classify_dialogue_with_llm, messages)
-
             from app.memory import session_manager
+            session = session_manager.get_or_create_session(session_id)
+            if session.user_style and session.user_style != "trung_tinh":
+                # Already has specific persona identified, keep it
+                return
 
-            style_title, _ = STYLE_PROMPT_DIRECTIVES.get(
-                detected_key, STYLE_PROMPT_DIRECTIVES["trung_tinh"]
-            )
-            session_manager.update_user_style(session_id, detected_key, style_title)
-            logger.info(f"[StyleAnalyzer:LLM] Session {session_id} persona classified by LLM as: {detected_key} ({style_title})")
+            # Check heuristics directly first (instant, 0 API quota consumed)
+            last_content = messages[-1].get("content", "") if messages else ""
+            fast_style = self.classify_heuristics(last_content)
+            if fast_style:
+                style_title, _ = STYLE_PROMPT_DIRECTIVES.get(fast_style, STYLE_PROMPT_DIRECTIVES["trung_tinh"])
+                session_manager.update_user_style(session_id, fast_style, style_title)
+                logger.info(f"[StyleAnalyzer:FastHeuristic] Session {session_id} persona: {fast_style} ({style_title})")
+                return
+
+            # Only call LLM on turn 2 to save rate limit quota
+            if len(messages) >= 2 and len(messages) <= 4:
+                detected_key = await asyncio.to_thread(self.classify_dialogue_with_llm, messages)
+                style_title, _ = STYLE_PROMPT_DIRECTIVES.get(detected_key, STYLE_PROMPT_DIRECTIVES["trung_tinh"])
+                session_manager.update_user_style(session_id, detected_key, style_title)
+                logger.info(f"[StyleAnalyzer:LLM] Session {session_id} persona: {detected_key} ({style_title})")
 
         except Exception as e:
             logger.error(f"Error in LLM style analyzer async worker: {e}")

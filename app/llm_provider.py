@@ -1,5 +1,6 @@
 import logging
 import re
+import time
 from typing import Dict, Generator, List, Optional
 
 try:
@@ -115,7 +116,7 @@ def _filter_thinking_stream(generator: Generator[str, None, None]) -> Generator[
 
 
 class LLMProvider:
-    """Core LLM Provider supporting Google Gemini and Groq with streaming."""
+    """Core LLM Provider supporting Google Gemini and Groq with smart circuit breaker and streaming."""
 
     def __init__(self):
         self.provider = settings.LLM_PROVIDER
@@ -126,6 +127,7 @@ class LLMProvider:
 
         self.gemini_client: Optional[genai.GenerativeModel] = None
         self.groq_client: Optional[Groq] = None
+        self._model_cooldowns: Dict[str, float] = {}  # {model_name: cooldown_until_timestamp}
 
         self._init_clients()
 
@@ -139,24 +141,48 @@ class LLMProvider:
             except Exception as e:
                 logger.error(f"Failed to configure Gemini: {e}")
 
-        # 2. Initialize Groq
+        # 2. Initialize Groq with max_retries=0 so 429 fails over in 0.05s instead of sleeping 20s
         if self.groq_key and Groq is not None:
             try:
-                self.groq_client = Groq(api_key=self.groq_key)
-                logger.info(f"Initialized Groq model: {self.groq_model_name}")
+                self.groq_client = Groq(api_key=self.groq_key, max_retries=0, timeout=12.0)
+                logger.info(f"Initialized Groq model: {self.groq_model_name} (Smart Circuit Breaker active)")
             except Exception as e:
                 logger.error(f"Failed to configure Groq: {e}")
+
+    def _get_ordered_groq_models(self) -> List[str]:
+        """
+        Smart Load Router & Circuit Breaker:
+        Prioritizes models that are not in cooldown (cooling down from 429).
+        """
+        all_models = list(dict.fromkeys([
+            self.groq_model_name,
+            "qwen/qwen3.6-27b",
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "groq/compound-mini",
+            "groq/compound",
+        ]))
+
+        now = time.time()
+        healthy_models = [m for m in all_models if self._model_cooldowns.get(m, 0) <= now]
+        cooldown_models = [m for m in all_models if self._model_cooldowns.get(m, 0) > now]
+
+        return healthy_models + cooldown_models
+
+    def _mark_model_cooldown(self, model_name: str, seconds: float = 25.0):
+        """Marks a model as cooling down after hitting rate limits (429/TPM)."""
+        self._model_cooldowns[model_name] = time.time() + seconds
+        logger.warning(f"⚡ [CircuitBreaker] Model {model_name} in cooldown for {seconds}s. Next requests will route to healthy models.")
 
     def generate_response(
         self,
         messages: List[Dict[str, str]],
         user_style_key: str = "trung_tinh",
     ) -> str:
-        """Generates a complete response through the LLM prompt."""
+        """Generates a complete response through the LLM prompt with zero-delay failover."""
         if not messages:
             return "Xin chào! Tôi là NQK AI Assistant. Tôi có thể hỗ trợ gì cho bạn về thông tin và năng lực của Nguyễn Quốc Khoa?"
 
-        # Keep last 6 messages to stay well within TPM token limits
         trimmed_messages = messages[-6:] if len(messages) > 6 else messages
         last_user_query = trimmed_messages[-1].get("content", "")
         system_instruction = build_system_prompt(user_style_key)
@@ -186,22 +212,14 @@ class LLMProvider:
                     logger.warning(f"Gemini model {g_model_name} failed: {e}. Trying fallback...")
                     continue
 
-        # 2. Try Groq with multi-model fallback
+        # 2. Try Groq with Smart Circuit Breaker
         if self.groq_client:
-            models_to_try = list(dict.fromkeys([
-                self.groq_model_name,
-                "openai/gpt-oss-120b",
-                "qwen/qwen3.6-27b",
-                "openai/gpt-oss-20b",
-                "groq/compound-mini",
-                "groq/compound",
-            ]))
+            models_to_try = self._get_ordered_groq_models()
             groq_messages = [{"role": "system", "content": system_instruction}]
             for m in trimmed_messages[:-1]:
                 role = "user" if m.get("role") == "user" else "assistant"
                 content = (m.get("content") or "").strip()
                 if content:
-                    # Clean out any previous action tags or think tags from history
                     clean_m_content = re.sub(r"<think>[\s\S]*?</think>", "", content)
                     groq_messages.append({"role": role, "content": clean_m_content})
             groq_messages.append({"role": "user", "content": last_user_query})
@@ -216,7 +234,11 @@ class LLMProvider:
                     )
                     return sanitize_text(res.choices[0].message.content)
                 except Exception as e:
-                    logger.warning(f"Groq model {model_name} failed: {e}. Trying fallback...")
+                    # If 429 or rate limit, put model on cooldown and switch in 0.05s
+                    if "429" in str(e) or "rate_limit" in str(e).lower() or "too many requests" in str(e).lower():
+                        self._mark_model_cooldown(model_name, seconds=25.0)
+                    else:
+                        logger.warning(f"Groq model {model_name} failed: {e}. Trying fallback...")
                     continue
 
         # If completely unavailable, return a friendly server busy response
@@ -234,7 +256,7 @@ class LLMProvider:
         messages: List[Dict[str, str]],
         user_style_key: str = "trung_tinh",
     ) -> Generator[str, None, None]:
-        """Internal generator pulling raw stream chunks from LLMs."""
+        """Internal generator pulling raw stream chunks from LLMs with instant smart failover."""
         if not messages:
             yield "Xin chào! Tôi có thể giúp gì cho bạn?"
             return
@@ -273,16 +295,9 @@ class LLMProvider:
                     logger.warning(f"Gemini stream model {g_model_name} failed: {e}. Trying fallback...")
                     continue
 
-        # 2. Stream with Groq
+        # 2. Stream with Groq using Smart Circuit Breaker
         if self.groq_client:
-            models_to_try = list(dict.fromkeys([
-                self.groq_model_name,
-                "openai/gpt-oss-120b",
-                "qwen/qwen3.6-27b",
-                "openai/gpt-oss-20b",
-                "groq/compound-mini",
-                "groq/compound",
-            ]))
+            models_to_try = self._get_ordered_groq_models()
             groq_messages = [{"role": "system", "content": system_instruction}]
             for m in trimmed_messages[:-1]:
                 role = "user" if m.get("role") == "user" else "assistant"
@@ -301,18 +316,23 @@ class LLMProvider:
                         max_tokens=1500,
                         stream=True,
                     )
+                    has_yielded = False
                     for chunk in response:
                         delta = chunk.choices[0].delta.content
                         if delta:
+                            has_yielded = True
                             yield delta
-                    return
+                    if has_yielded:
+                        return
                 except Exception as e:
-                    logger.warning(f"Groq stream model {model_name} failed: {e}. Trying fallback...")
+                    if "429" in str(e) or "rate_limit" in str(e).lower() or "too many requests" in str(e).lower():
+                        self._mark_model_cooldown(model_name, seconds=25.0)
+                    else:
+                        logger.warning(f"Groq stream model {model_name} failed: {e}. Trying fallback...")
                     continue
 
         # Fallback text
         reply = self.generate_response(messages, user_style_key)
-        import time
         for word in reply.split(" "):
             yield word + " "
             time.sleep(0.015)
