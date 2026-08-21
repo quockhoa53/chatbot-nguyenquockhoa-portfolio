@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
@@ -10,6 +11,7 @@ from app.llm_provider import llm_provider
 from app.memory import session_manager
 from app.style_analyzer import STYLE_PROMPT_DIRECTIVES, style_analyzer
 
+logger = logging.getLogger("routes")
 router = APIRouter(prefix="/api")
 
 
@@ -189,20 +191,21 @@ async def chat_stream_endpoint(payload: ChatRequestPayload, background_tasks: Ba
         full_reply = "".join(full_response)
         session.add_message("assistant", full_reply)
 
-        # Asynchronously persist conversation to PostgreSQL as JSONB without blocking client stream
+        # Asynchronously persist conversation to PostgreSQL as JSONB via dedicated daemon thread
         try:
-            import asyncio
-            asyncio.create_task(
-                asyncio.to_thread(
-                    save_conversation_to_db,
+            import threading
+            threading.Thread(
+                target=save_conversation_to_db,
+                args=(
                     session.session_id,
                     session.user_style,
                     session.style_description,
                     session.get_messages_dict(),
-                )
-            )
-        except Exception:
-            pass
+                ),
+                daemon=True,
+            ).start()
+        except Exception as e:
+            logger.error(f"Error spawning conversation saver thread: {e}")
 
         yield f"data: {json.dumps({'done': True})}\n\n"
 
