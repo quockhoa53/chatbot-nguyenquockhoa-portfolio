@@ -52,6 +52,67 @@ def _format_gemini_history(messages: List[Dict[str, str]]) -> List[Dict[str, any
     return formatted
 
 
+def _filter_thinking_stream(generator: Generator[str, None, None]) -> Generator[str, None, None]:
+    """
+    Stateful streaming filter that suppresses all content enclosed within <think> and </think> tags.
+    Emits clean final response tokens in real-time to the user.
+    """
+    in_think = False
+    buffer = ""
+
+    for chunk in generator:
+        if not chunk:
+            continue
+        buffer += chunk
+
+        while buffer:
+            if not in_think:
+                think_start = buffer.find("<think>")
+                if think_start != -1:
+                    # Emit clean text before <think>
+                    before = buffer[:think_start]
+                    if before:
+                        yield before
+                    buffer = buffer[think_start + len("<think>"):]
+                    in_think = True
+                else:
+                    # Check if buffer ends with partial "<think"
+                    partial = False
+                    for i in range(1, len("<think>")):
+                        if buffer.endswith("<think>"[:i]):
+                            if len(buffer) > i:
+                                yield buffer[:-i]
+                                buffer = buffer[-i:]
+                            partial = True
+                            break
+                    if not partial:
+                        yield buffer
+                        buffer = ""
+                    break
+            else:
+                think_end = buffer.find("</think>")
+                if think_end != -1:
+                    # Thought block ended, discard thought text
+                    buffer = buffer[think_end + len("</think>"):]
+                    in_think = False
+                else:
+                    # Still inside <think>, check if buffer ends with partial "</think"
+                    partial_len = 0
+                    for i in range(1, len("</think>")):
+                        if buffer.endswith("</think>"[:i]):
+                            partial_len = i
+                            break
+                    buffer = buffer[-partial_len:] if partial_len > 0 else ""
+                    break
+
+    # If stream ends with unclosed thought or remaining clean text
+    if buffer and not in_think:
+        clean = re.sub(r"<think>[\s\S]*?</think>", "", buffer)
+        clean = re.sub(r"<think>[\s\S]*$", "", clean)
+        if clean:
+            yield clean
+
+
 class LLMProvider:
     """Core LLM Provider supporting Google Gemini and Groq with streaming."""
 
@@ -60,7 +121,7 @@ class LLMProvider:
         self.gemini_key = settings.GEMINI_API_KEY
         self.groq_key = settings.GROQ_API_KEY
         self.gemini_model_name = settings.GEMINI_MODEL or "gemini-2.0-flash"
-        self.groq_model_name = settings.GROQ_MODEL or "llama-3.3-70b-versatile"
+        self.groq_model_name = settings.GROQ_MODEL or "openai/gpt-oss-120b"
 
         self.gemini_client: Optional[genai.GenerativeModel] = None
         self.groq_client: Optional[Groq] = None
@@ -94,7 +155,9 @@ class LLMProvider:
         if not messages:
             return "Xin chào! Tôi là NQK AI Assistant. Tôi có thể hỗ trợ gì cho bạn về thông tin và năng lực của Nguyễn Quốc Khoa?"
 
-        last_user_query = messages[-1].get("content", "")
+        # Keep last 6 messages to stay well within TPM token limits
+        trimmed_messages = messages[-6:] if len(messages) > 6 else messages
+        last_user_query = trimmed_messages[-1].get("content", "")
         system_instruction = build_system_prompt(user_style_key)
 
         # 1. Try Gemini models with fallback
@@ -106,7 +169,7 @@ class LLMProvider:
                 "gemini-1.5-flash-8b",
                 "gemini-1.5-pro",
             ]))
-            formatted_history = _format_gemini_history(messages[:-1])
+            formatted_history = _format_gemini_history(trimmed_messages[:-1])
 
             for g_model_name in gemini_models_to_try:
                 try:
@@ -131,15 +194,15 @@ class LLMProvider:
                 "openai/gpt-oss-20b",
                 "groq/compound-mini",
                 "groq/compound",
-                "llama-3.3-70b-versatile",
-                "llama-3.1-8b-instant",
             ]))
             groq_messages = [{"role": "system", "content": system_instruction}]
-            for m in messages[:-1]:
+            for m in trimmed_messages[:-1]:
                 role = "user" if m.get("role") == "user" else "assistant"
-                content = m.get("content", "").strip()
+                content = (m.get("content") or "").strip()
                 if content:
-                    groq_messages.append({"role": role, "content": content})
+                    # Clean out any previous action tags or think tags from history
+                    clean_m_content = re.sub(r"<think>[\s\S]*?</think>", "", content)
+                    groq_messages.append({"role": role, "content": clean_m_content})
             groq_messages.append({"role": "user", "content": last_user_query})
 
             for model_name in models_to_try:
@@ -165,17 +228,18 @@ class LLMProvider:
             "Rất cảm ơn sự thông cảm của bạn! ✨"
         )
 
-    def stream_response(
+    def _raw_stream_response(
         self,
         messages: List[Dict[str, str]],
         user_style_key: str = "trung_tinh",
     ) -> Generator[str, None, None]:
-        """Streams response tokens in real-time."""
+        """Internal generator pulling raw stream chunks from LLMs."""
         if not messages:
             yield "Xin chào! Tôi có thể giúp gì cho bạn?"
             return
 
-        last_user_query = messages[-1].get("content", "")
+        trimmed_messages = messages[-6:] if len(messages) > 6 else messages
+        last_user_query = trimmed_messages[-1].get("content", "")
         system_instruction = build_system_prompt(user_style_key)
 
         # 1. Stream with Gemini models with fallback
@@ -187,7 +251,7 @@ class LLMProvider:
                 "gemini-1.5-flash-8b",
                 "gemini-1.5-pro",
             ]))
-            formatted_history = _format_gemini_history(messages[:-1])
+            formatted_history = _format_gemini_history(trimmed_messages[:-1])
 
             for g_model_name in gemini_models_to_try:
                 try:
@@ -201,7 +265,7 @@ class LLMProvider:
                     for chunk in response:
                         if chunk.text:
                             has_chunks = True
-                            yield sanitize_text(chunk.text)
+                            yield chunk.text
                     if has_chunks:
                         return
                 except Exception as e:
@@ -217,15 +281,14 @@ class LLMProvider:
                 "openai/gpt-oss-20b",
                 "groq/compound-mini",
                 "groq/compound",
-                "llama-3.3-70b-versatile",
-                "llama-3.1-8b-instant",
             ]))
             groq_messages = [{"role": "system", "content": system_instruction}]
-            for m in messages[:-1]:
+            for m in trimmed_messages[:-1]:
                 role = "user" if m.get("role") == "user" else "assistant"
-                content = m.get("content", "").strip()
+                content = (m.get("content") or "").strip()
                 if content:
-                    groq_messages.append({"role": role, "content": content})
+                    clean_m_content = re.sub(r"<think>[\s\S]*?</think>", "", content)
+                    groq_messages.append({"role": role, "content": clean_m_content})
             groq_messages.append({"role": "user", "content": last_user_query})
 
             for model_name in models_to_try:
@@ -240,7 +303,7 @@ class LLMProvider:
                     for chunk in response:
                         delta = chunk.choices[0].delta.content
                         if delta:
-                            yield sanitize_text(delta)
+                            yield delta
                     return
                 except Exception as e:
                     logger.warning(f"Groq stream model {model_name} failed: {e}. Trying fallback...")
@@ -252,6 +315,16 @@ class LLMProvider:
         for word in reply.split(" "):
             yield word + " "
             time.sleep(0.015)
+
+    def stream_response(
+        self,
+        messages: List[Dict[str, str]],
+        user_style_key: str = "trung_tinh",
+    ) -> Generator[str, None, None]:
+        """Streams response tokens with real-time thought-process filtering and security sanitization."""
+        raw_stream = self._raw_stream_response(messages, user_style_key)
+        for token in _filter_thinking_stream(raw_stream):
+            yield sanitize_text(token)
 
 
 # Global instance

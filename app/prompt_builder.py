@@ -62,34 +62,27 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
     if profile.get("facebook_url"):
         prompt_parts.append(f"- Facebook: {profile.get('facebook_url')}")
     if profile.get("short_bio"):
-        prompt_parts.append(f"- Tóm tắt chuyên môn & Phương châm cốt lõi: {profile.get('short_bio')}")
+        prompt_parts.append(f"- Tóm tắt chuyên môn: {profile.get('short_bio')[:300]}")
     if profile.get("bio_plain"):
-        prompt_parts.append(f"- Giới thiệu chi tiết & Triết lý phát triển (Bio):\n{profile.get('bio_plain')}")
+        prompt_parts.append(f"- Giới thiệu Bio: {profile.get('bio_plain')[:400]}")
 
     # 2. Experiences at Companies
     if experiences:
-        prompt_parts.append("\n=== 2. LỊCH SỬ KINH NGHIỆM LÀM VIỆC TẠI CÁC CÔNG TY (Bảng experiences) ===")
+        prompt_parts.append("\n=== 2. LỊCH SỬ KINH NGHIỆM (Bảng experiences) ===")
         for idx, exp in enumerate(experiences, 1):
             start = exp.get("start_date", "")
             end = exp.get("end_date", "Hiện tại")
             time_range = f"{start} — {end}" if start else end
-            prompt_parts.append(f"* **Công ty {idx}: {exp.get('company')}**")
-            prompt_parts.append(f"  - Vị trí: {exp.get('position')}")
-            prompt_parts.append(f"  - Thời gian: {time_range}")
-            if exp.get("description_plain"):
-                prompt_parts.append(f"  - Trách nhiệm & Dự án đã làm: {exp.get('description_plain')}")
+            desc = (exp.get("description_plain") or "")[:150]
+            prompt_parts.append(f"* **{exp.get('company')}** ({exp.get('position')}, {time_range}): {desc}")
 
     # 3. Work Process / Specific Engineering Items
     if work_items:
         prompt_parts.append("\n=== 3. QUÁ TRÌNH LÀM VIỆC (Bảng work_items) ===")
         for idx, w in enumerate(work_items, 1):
-            prompt_parts.append(f"* **{w.get('title')}** ({w.get('period', '')}) - {w.get('role', '')} tại {w.get('company', '')}")
-            if w.get("summary_plain"):
-                prompt_parts.append(f"  - Tóm tắt: {w.get('summary_plain')[:150]}")
-            if w.get("technologies"):
-                prompt_parts.append(f"  - Công nghệ: {w.get('technologies')}")
-            if w.get("detail_url"):
-                prompt_parts.append(f"  - Link: [{w.get('title')}]({w.get('detail_url')})")
+            summary = (w.get("summary_plain") or "")[:100]
+            link = f" (Link: [{w.get('title')}]({w.get('detail_url')}))" if w.get("detail_url") else ""
+            prompt_parts.append(f"* **{w.get('title')}** ({w.get('role', '')} @ {w.get('company', '')}): {summary}{link}")
 
     # 4. Technical Skills
     if skills:
@@ -108,38 +101,33 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
         prompt_parts.append("\n=== 5. CÁC DỰ ÁN TIÊU BIỂU (Bảng projects) ===")
         for idx, p in enumerate(projects, 1):
             feat = " [⭐ NỔI BẬT]" if p.get("featured") else ""
-            prompt_parts.append(f"* **{p.get('title')}{feat}**: Công nghệ: {p.get('technologies', 'N/A')}")
-            if p.get("summary"):
-                prompt_parts.append(f"  - Tóm tắt: {p.get('summary')}")
-            if p.get("detail_url"):
-                prompt_parts.append(f"  - Link xem: [{p.get('title')}]({p.get('detail_url')})")
+            summary = (p.get("summary") or "")[:120]
+            link = f" (Link: [{p.get('title')}]({p.get('detail_url')}))" if p.get("detail_url") else ""
+            prompt_parts.append(f"* **{p.get('title')}{feat}** (Tech: {p.get('technologies', 'N/A')}): {summary}{link}")
 
     # 6. Knowledge Articles
     if articles:
         prompt_parts.append("\n=== 6. BÀI VIẾT CHIA SẺ KIẾN THỨC (Bảng knowledge_articles) ===")
         for idx, a in enumerate(articles, 1):
-            prompt_parts.append(f"* **{a.get('title')}** (Chủ đề: {a.get('category', 'Kiến thức')})")
-            if a.get("summary"):
-                prompt_parts.append(f"  - Tóm tắt: {a.get('summary')}")
-            if a.get("detail_url"):
-                prompt_parts.append(f"  - Link bài viết: [{a.get('title')}]({a.get('detail_url')})")
+            summary = (a.get("summary") or "")[:100]
+            link = f" (Link: [{a.get('title')}]({a.get('detail_url')}))" if a.get("detail_url") else ""
+            prompt_parts.append(f"* **{a.get('title')}** ({a.get('category', 'Kiến thức')}): {summary}{link}")
 
     # 7. AI Extra Facts & Special Sidecar Knowledge
     if ai_facts:
         prompt_parts.append("\n=== 7. THÔNG TIN BỔ SUNG & BỘ NHỚ ĐẶC BIỆT (Bảng ai_facts) ===")
         for idx, f in enumerate(ai_facts, 1):
-            prompt_parts.append(f"* **{f.get('title')}** ({f.get('category')}): {f.get('content')}")
+            content = (f.get("content") or "")[:120]
+            prompt_parts.append(f"* **{f.get('title')}** ({f.get('category')}): {content}")
 
     # 8. Resumes / CV Profiles
     if resumes:
         prompt_parts.append("\n=== 8. DANH SÁCH BẢN CV & HỒ SƠ ỨNG TUYỂN (Bảng resumes) ===")
         for idx, r in enumerate(resumes, 1):
             primary_tag = " [⭐ CV CHÍNH]" if r.get("is_primary") else ""
-            prompt_parts.append(f"* **{r.get('title')}{primary_tag}** (Vị trí: {r.get('target_role')})")
-            if r.get("summary"):
-                prompt_parts.append(f"  - Điểm mạnh: {r.get('summary')}")
-            if r.get("download_url"):
-                prompt_parts.append(f"  - Link tải CV: [{r.get('title')}]({r.get('download_url')})")
+            summary = (r.get("summary") or "")[:100]
+            link = f" (Link tải: [{r.get('title')}]({r.get('download_url')}))" if r.get("download_url") else ""
+            prompt_parts.append(f"* **{r.get('title')}{primary_tag}** (Vị trí: {r.get('target_role')}): {summary}{link}")
 
     # Universal Reasoning Framework (Hybrid: Grounded Portfolio + Open World Knowledge)
     prompt_parts.append("\n[NGUYÊN TẮC SUY LUẬN & TRẢ LỜI ĐA DẠNG]:")

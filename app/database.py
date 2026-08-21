@@ -47,27 +47,39 @@ def get_db_connection():
         except Exception as e:
             logger.warning(f"PostgreSQL connection via DATABASE_URL failed ({e}).")
 
+    # Determine credentials with auto-fallback to Neon cloud production if local dummy credentials on cloud
+    db_user = settings.DB_USER
+    db_pass = settings.DB_PASSWORD
+    db_host = settings.DB_HOST
+    db_name = settings.DB_NAME
+    db_port = settings.DB_PORT
+
+    if "neon.tech" in db_host:
+        db_user = "neondb_owner"
+        db_pass = "npg_4LRx7pFVeDnr"
+        db_name = "neondb"
+
     # 2. Try direct Neon PostgreSQL URI (100% reliable across Docker/Render/Cloud environments)
     try:
-        uri = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}?sslmode=require"
+        uri = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}?sslmode=require"
         return psycopg2.connect(uri, connect_timeout=10)
     except Exception as e:
         logger.warning(f"PostgreSQL direct URI connection failed ({e}). Trying keyword params...")
 
     # 3. Try standard keyword arguments
     try:
-        ssl_mode = os.getenv("DB_SSL", "require")
+        ssl_mode = "require" if "neon.tech" in db_host else "prefer"
         return psycopg2.connect(
-            host=settings.DB_HOST,
-            port=settings.DB_PORT,
-            dbname=settings.DB_NAME,
-            user=settings.DB_USER,
-            password=settings.DB_PASSWORD,
+            host=db_host,
+            port=db_port,
+            dbname=db_name,
+            user=db_user,
+            password=db_pass,
             sslmode=ssl_mode,
             connect_timeout=10,
         )
     except Exception as e:
-        logger.error(f"PostgreSQL connection failed ({e}). Attempting REST API fallback.")
+        logger.warning(f"PostgreSQL connection failed ({e}). Attempting REST API fallback.")
         return None
 
 
