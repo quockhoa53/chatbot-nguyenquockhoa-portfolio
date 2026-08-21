@@ -63,70 +63,86 @@ def clean_text_for_tts(raw_text: str) -> str:
 
 @router.post("/tts")
 async def text_to_speech_endpoint(payload: TTSRequestPayload):
-    """ElevenLabs Neural TTS (Adam - Trend voice) with in-memory caching and graceful client fallback."""
+    """Multi-provider Neural TTS: Microsoft Edge TTS (100% Free & Unlimited) + ElevenLabs + In-Memory Cache."""
     clean_text = clean_text_for_tts(payload.text)
     if not clean_text:
         raise HTTPException(status_code=400, detail="Văn bản cần đọc không hợp lệ.")
 
-    # Limit text length per request to 500 characters to conserve quota
+    # Limit text length per request to 500 characters
     if len(clean_text) > 500:
         clean_text = clean_text[:497] + "..."
 
     # Check cache first
-    cache_key = hashlib.md5(f"{clean_text}_{payload.voice_id or settings.ELEVENLABS_VOICE_ID}".encode("utf-8")).hexdigest()
+    voice_identifier = payload.voice_id or (settings.EDGE_TTS_VOICE if settings.TTS_PROVIDER == "edge-tts" else settings.ELEVENLABS_VOICE_ID)
+    cache_key = hashlib.md5(f"{clean_text}_{voice_identifier}".encode("utf-8")).hexdigest()
     if cache_key in _audio_cache:
         logger.info(f"🔊 [TTS Cache Hit] Returning cached audio for '{clean_text[:30]}...'")
         return Response(content=_audio_cache[cache_key], media_type="audio/mpeg")
 
-    if not settings.ELEVENLABS_API_KEY:
-        raise HTTPException(status_code=503, detail="FALLBACK_BROWSER_TTS")
+    # 1. Primary Provider: Microsoft Edge Neural TTS (100% Free Native Vietnamese: Hoai My / Nam Minh)
+    if settings.TTS_PROVIDER == "edge-tts":
+        try:
+            import edge_tts
+            voice = payload.voice_id if (payload.voice_id and "vi-VN" in payload.voice_id) else settings.EDGE_TTS_VOICE
+            communicate = edge_tts.Communicate(clean_text, voice=voice, rate=settings.EDGE_TTS_RATE)
+            fp = io.BytesIO()
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    fp.write(chunk["data"])
+            audio_bytes = fp.getvalue()
 
-    voice_id = payload.voice_id or settings.ELEVENLABS_VOICE_ID
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-
-    headers = {
-        "xi-api-key": settings.ELEVENLABS_API_KEY,
-        "Content-Type": "application/json",
-    }
-
-    body = {
-        "text": clean_text,
-        "model_id": settings.ELEVENLABS_MODEL_ID,
-        "voice_settings": {
-            "stability": 0.32,
-            "similarity_boost": 0.82,
-            "style": 0.45,
-            "use_speaker_boost": True,
-        },
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.post(url, json=body, headers=headers)
-            
-            # If library voice requires paid subscription (400 or 402), seamlessly fallback to best pre-made female voice
-            if resp.status_code in [400, 402] and voice_id not in ["cgSgspJ2msm6clMCkdW9", "EXAVITQu4vr4xnSDxMaL"]:
-                fallback_voice = "cgSgspJ2msm6clMCkdW9"  # Jessica (Clear & Natural Female)
-                fallback_url = f"https://api.elevenlabs.io/v1/text-to-speech/{fallback_voice}"
-                logger.info(f"🔊 Library voice '{voice_id}' requires paid plan, auto-falling back to pre-made voice '{fallback_voice}'")
-                resp = await client.post(fallback_url, json=body, headers=headers)
-
-            if resp.status_code == 200:
-                audio_bytes = resp.content
-                # Cache up to 100 recent audio snippets
+            if audio_bytes and len(audio_bytes) > 500:
                 if len(_audio_cache) > 100:
                     _audio_cache.pop(next(iter(_audio_cache)))
                 _audio_cache[cache_key] = audio_bytes
-                logger.info(f"🔊 [TTS Success] Generated {len(audio_bytes)} bytes audio for '{clean_text[:30]}...'")
+                logger.info(f"🔊 [Edge-TTS Success ({voice})] Generated {len(audio_bytes)} bytes audio for '{clean_text[:30]}...'")
                 return Response(content=audio_bytes, media_type="audio/mpeg")
-            else:
-                logger.warning(f"ElevenLabs TTS failed ({resp.status_code}): {resp.text}")
-                raise HTTPException(status_code=resp.status_code, detail="FALLBACK_BROWSER_TTS")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"ElevenLabs request error: {e}")
-        raise HTTPException(status_code=500, detail="FALLBACK_BROWSER_TTS")
+        except Exception as e:
+            logger.warning(f"Edge-TTS generation failed, attempting ElevenLabs/Browser fallback: {e}")
+
+    # 2. Secondary Provider: ElevenLabs
+    if settings.ELEVENLABS_API_KEY:
+        voice_id = payload.voice_id or settings.ELEVENLABS_VOICE_ID
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+
+        headers = {
+            "xi-api-key": settings.ELEVENLABS_API_KEY,
+            "Content-Type": "application/json",
+        }
+
+        body = {
+            "text": clean_text,
+            "model_id": settings.ELEVENLABS_MODEL_ID,
+            "voice_settings": {
+                "stability": 0.32,
+                "similarity_boost": 0.82,
+                "style": 0.45,
+                "use_speaker_boost": True,
+            },
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                resp = await client.post(url, json=body, headers=headers)
+                
+                # If library voice requires paid subscription (400 or 402), fallback to best pre-made female voice
+                if resp.status_code in [400, 402] and voice_id not in ["cgSgspJ2msm6clMCkdW9", "EXAVITQu4vr4xnSDxMaL"]:
+                    fallback_voice = "cgSgspJ2msm6clMCkdW9"  # Jessica
+                    fallback_url = f"https://api.elevenlabs.io/v1/text-to-speech/{fallback_voice}"
+                    resp = await client.post(fallback_url, json=body, headers=headers)
+
+                if resp.status_code == 200:
+                    audio_bytes = resp.content
+                    if len(_audio_cache) > 100:
+                        _audio_cache.pop(next(iter(_audio_cache)))
+                    _audio_cache[cache_key] = audio_bytes
+                    logger.info(f"🔊 [ElevenLabs Success] Generated {len(audio_bytes)} bytes audio for '{clean_text[:30]}...'")
+                    return Response(content=audio_bytes, media_type="audio/mpeg")
+        except Exception as e:
+            logger.error(f"ElevenLabs request error: {e}")
+
+    # 3. Fallback: Browser Web Speech API
+    raise HTTPException(status_code=503, detail="FALLBACK_BROWSER_TTS")
 
 
 @router.get("/health")

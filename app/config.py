@@ -41,9 +41,14 @@ class Settings:
         "http://localhost:5173,http://localhost:3000,https://nguyenquockhoaportfolio.vercel.app",
     ).strip()
 
-    # ElevenLabs Text-to-Speech Settings
+    # Text-to-Speech Settings (Default: "edge-tts" for 100% Free Unlimited Native Vietnamese Voice)
+    TTS_PROVIDER: str = os.getenv("TTS_PROVIDER", "edge-tts").lower()
+    EDGE_TTS_VOICE: str = os.getenv("EDGE_TTS_VOICE", "vi-VN-HoaiMyNeural").strip()  # vi-VN-HoaiMyNeural (Nữ miền Nam) hoặc vi-VN-NamMinhNeural (Nam miền Nam)
+    EDGE_TTS_RATE: str = os.getenv("EDGE_TTS_RATE", "+10%").strip()
+
+    # ElevenLabs Text-to-Speech Settings (Alternative Cloud Provider)
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "").strip()
-    ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "x4KAhuXs2G8TfK9Zr7Q4").strip()  # Cam Hong - HCM Local (Fallback to Jessica)
+    ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "x4KAhuXs2G8TfK9Zr7Q4").strip()
     ELEVENLABS_MODEL_ID: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2").strip()
 
     # Session / Cache Settings
