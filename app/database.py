@@ -483,3 +483,93 @@ def get_live_portfolio_data(force_refresh: bool = False) -> Dict[str, Any]:
         "knowledge_articles": [],
         "ai_facts": [],
     }
+
+
+def save_conversation_to_db(
+    session_id: str,
+    user_style: str,
+    style_description: str,
+    messages: List[Dict[str, Any]],
+    metadata: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """Upserts full conversation history into PostgreSQL 'chatbot_conversations' table as JSONB."""
+    if not session_id or not messages:
+        return False
+
+    conn = get_db_connection()
+    if not conn:
+        return False
+
+    try:
+        import json
+        cursor = conn.cursor()
+        conv_id = f"conv_{session_id}"
+        messages_json = json.dumps(messages, ensure_ascii=False)
+        metadata_json = json.dumps(metadata or {}, ensure_ascii=False)
+        msg_count = len(messages)
+
+        cursor.execute("""
+            INSERT INTO chatbot_conversations (
+                id, session_id, user_style, style_description, 
+                messages, message_count, metadata, created_at, updated_at
+            )
+            VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::jsonb, NOW(), NOW())
+            ON CONFLICT (session_id) DO UPDATE SET
+                user_style = EXCLUDED.user_style,
+                style_description = EXCLUDED.style_description,
+                messages = EXCLUDED.messages,
+                message_count = EXCLUDED.message_count,
+                metadata = EXCLUDED.metadata,
+                updated_at = NOW();
+        """, (
+            conv_id,
+            session_id,
+            user_style or "trung_tinh",
+            style_description or "Tự nhiên, thân thiện và chuyên nghiệp",
+            messages_json,
+            msg_count,
+            metadata_json,
+        ))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info(f"💾 [DB] Successfully saved conversation {conv_id} ({msg_count} msgs) into Neon PostgreSQL JSONB.")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save conversation {session_id} to DB: {e}")
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return False
+
+
+def fetch_conversations_from_db(limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+    """Retrieves conversation history list with JSONB messages from Neon PostgreSQL."""
+    conn = get_db_connection()
+    if not conn:
+        return []
+
+    try:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute("""
+            SELECT id, session_id, user_style, style_description, 
+                   messages, message_count, metadata, created_at, updated_at
+            FROM chatbot_conversations
+            ORDER BY updated_at DESC
+            LIMIT %s OFFSET %s;
+        """, (limit, offset))
+        rows = cursor.fetchall() or []
+        cursor.close()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error(f"Failed to fetch conversations from DB: {e}")
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return []
+

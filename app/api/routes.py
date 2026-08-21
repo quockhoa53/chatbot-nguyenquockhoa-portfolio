@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.config import settings
-from app.database import get_live_portfolio_data
+from app.database import fetch_conversations_from_db, get_live_portfolio_data, save_conversation_to_db
 from app.llm_provider import llm_provider
 from app.memory import session_manager
 from app.style_analyzer import STYLE_PROMPT_DIRECTIVES, style_analyzer
@@ -130,6 +130,15 @@ async def chat_endpoint(payload: ChatRequestPayload, background_tasks: Backgroun
     # 5. Append assistant reply to session
     session.add_message("assistant", reply)
 
+    # 6. Asynchronously persist conversation to PostgreSQL as JSONB
+    background_tasks.add_task(
+        save_conversation_to_db,
+        session.session_id,
+        session.user_style,
+        session.style_description,
+        session.get_messages_dict(),
+    )
+
     active_model = (
         settings.GEMINI_MODEL
         if settings.LLM_PROVIDER == "gemini" and llm_provider.gemini_client
@@ -177,7 +186,24 @@ async def chat_stream_endpoint(payload: ChatRequestPayload, background_tasks: Ba
             yield f"data: {payload}\n\n"
         
         # Save complete assistant reply
-        session.add_message("assistant", "".join(full_response))
+        full_reply = "".join(full_response)
+        session.add_message("assistant", full_reply)
+
+        # Asynchronously persist conversation to PostgreSQL as JSONB without blocking client stream
+        try:
+            import asyncio
+            asyncio.create_task(
+                asyncio.to_thread(
+                    save_conversation_to_db,
+                    session.session_id,
+                    session.user_style,
+                    session.style_description,
+                    session.get_messages_dict(),
+                )
+            )
+        except Exception:
+            pass
+
         yield f"data: {json.dumps({'done': True})}\n\n"
 
     return StreamingResponse(
@@ -204,3 +230,12 @@ def get_session_info(session_id: str):
         "style_description": session.style_description,
         "messages": session.get_messages_dict(),
     }
+
+
+@router.get("/conversations")
+def get_stored_conversations(limit: int = 50, offset: int = 0):
+    """Admin / Data collection endpoint retrieving stored conversations from PostgreSQL."""
+    return {
+        "data": fetch_conversations_from_db(limit=limit, offset=offset)
+    }
+
