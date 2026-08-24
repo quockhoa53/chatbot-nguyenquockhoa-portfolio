@@ -1,11 +1,13 @@
 import asyncio
 import hashlib
 import io
+import json
 import logging
 import re
+import threading
 from typing import List, Optional
 import httpx
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Response
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -13,6 +15,7 @@ from app.config import settings
 from app.database import fetch_conversations_from_db, get_live_portfolio_data, save_conversation_to_db
 from app.llm_provider import llm_provider
 from app.memory import session_manager
+from app.security import injection_guard, message_guard, rate_limiter
 from app.style_analyzer import STYLE_PROMPT_DIRECTIVES, style_analyzer
 
 logger = logging.getLogger("routes")
@@ -62,8 +65,11 @@ def clean_text_for_tts(raw_text: str) -> str:
 
 
 @router.post("/tts")
-async def text_to_speech_endpoint(payload: TTSRequestPayload):
-    """Multi-provider Neural TTS: Microsoft Edge TTS (100% Free & Unlimited) + ElevenLabs + In-Memory Cache."""
+async def text_to_speech_endpoint(request: Request, payload: TTSRequestPayload):
+    """Multi-provider Neural TTS with IP rate limiting (15 req/min), text sanitization & caching."""
+    # 1. Security: IP Rate Limiting Guard
+    rate_limiter.check_rate_limit(request, endpoint_type="tts", max_requests=15, window_seconds=60)
+
     clean_text = clean_text_for_tts(payload.text)
     if not clean_text:
         raise HTTPException(status_code=400, detail="Văn bản cần đọc không hợp lệ.")
@@ -160,43 +166,6 @@ def health():
     }
 
 
-@router.get("/debug-db")
-def debug_db():
-    import traceback
-    from app.database import fetch_from_postgres, fetch_from_rest_api, get_db_connection
-    
-    postgres_err = None
-    pg_data = None
-    import psycopg2
-    try:
-        uri = f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}?sslmode=require"
-        conn = psycopg2.connect(uri, connect_timeout=10)
-        conn.close()
-        pg_data = fetch_from_postgres()
-    except Exception as e:
-        postgres_err = traceback.format_exc()
-
-    rest_err = None
-    rest_data = None
-    try:
-        rest_data = fetch_from_rest_api()
-    except Exception as e:
-        rest_err = traceback.format_exc()
-
-    return {
-        "db_host": settings.DB_HOST,
-        "db_name": settings.DB_NAME,
-        "db_user": settings.DB_USER,
-        "portfolio_be_url": settings.PORTFOLIO_BE_URL,
-        "postgres_error": postgres_err,
-        "has_pg_profile": bool(pg_data and pg_data.get("profile")),
-        "pg_ai_facts": pg_data.get("ai_facts") if pg_data else [],
-        "rest_error": rest_err,
-        "has_rest_profile": bool(rest_data and rest_data.get("profile")),
-        "rest_ai_facts": rest_data.get("ai_facts") if rest_data else [],
-    }
-
-
 @router.get("/suggestions")
 def get_suggestions():
     return {
@@ -210,40 +179,55 @@ def get_suggestions():
 
 
 @router.post("/chat", response_model=ChatResponsePayload)
-async def chat_endpoint(payload: ChatRequestPayload, background_tasks: BackgroundTasks):
+async def chat_endpoint(request: Request, payload: ChatRequestPayload, background_tasks: BackgroundTasks):
+    # 1. Security: IP Rate Limiting Guard (Max 20 chat requests/min per IP)
+    rate_limiter.check_rate_limit(request, endpoint_type="chat", max_requests=20, window_seconds=60)
+
     session = session_manager.get_or_create_session(payload.session_id)
 
-    # 1. Determine user message
-    user_content = ""
+    # 2. Security: Validate user message format and maximum length (max 1000 chars)
+    raw_content = ""
     if payload.message:
-        user_content = payload.message.strip()
+        raw_content = payload.message
     elif payload.messages and len(payload.messages) > 0:
-        user_content = payload.messages[-1].content.strip()
+        raw_content = payload.messages[-1].content
 
-    if not user_content:
-        raise HTTPException(status_code=400, detail="Nội dung tin nhắn không được để trống.")
+    user_content = message_guard.validate_message(raw_content)
 
-    # 2. Append to session history
+    # 3. Security: Deflect Prompt Injection and Jailbreak attempts
+    injection_reply = injection_guard.check_injection(user_content)
+    if injection_reply:
+        session.add_message("user", user_content)
+        session.add_message("assistant", injection_reply)
+        return ChatResponsePayload(
+            session_id=session.session_id,
+            reply=injection_reply,
+            user_style=session.user_style,
+            style_description=session.style_description,
+            model="nqk-security-guard",
+        )
+
+    # 4. Append to session history
     session.add_message("user", user_content)
     messages_history = session.get_messages_dict()
 
-    # 3. Spawn independent async background task feeding the entire conversation into LLM for persona analysis
+    # 5. Spawn independent async background task feeding conversation into LLM for persona analysis
     background_tasks.add_task(
         style_analyzer.analyze_style_async,
         session.session_id,
         messages_history,
     )
 
-    # 4. Generate response from LLM using the session's detected style
+    # 6. Generate response from LLM using the session's detected style
     reply = llm_provider.generate_response(
         messages=messages_history,
         user_style_key=session.user_style,
     )
 
-    # 5. Append assistant reply to session
+    # 7. Append assistant reply to session
     session.add_message("assistant", reply)
 
-    # 6. Asynchronously persist conversation to PostgreSQL as JSONB
+    # 8. Asynchronously persist conversation to PostgreSQL as JSONB
     background_tasks.add_task(
         save_conversation_to_db,
         session.session_id,
@@ -268,17 +252,42 @@ async def chat_endpoint(payload: ChatRequestPayload, background_tasks: Backgroun
 
 
 @router.post("/chat/stream")
-async def chat_stream_endpoint(payload: ChatRequestPayload, background_tasks: BackgroundTasks):
+async def chat_stream_endpoint(request: Request, payload: ChatRequestPayload, background_tasks: BackgroundTasks):
+    # 1. Security: IP Rate Limiting Guard (Max 20 chat requests/min per IP)
+    rate_limiter.check_rate_limit(request, endpoint_type="chat", max_requests=20, window_seconds=60)
+
     session = session_manager.get_or_create_session(payload.session_id)
 
-    user_content = ""
+    # 2. Security: Validate user message format and maximum length (max 1000 chars)
+    raw_content = ""
     if payload.message:
-        user_content = payload.message.strip()
+        raw_content = payload.message
     elif payload.messages and len(payload.messages) > 0:
-        user_content = payload.messages[-1].content.strip()
+        raw_content = payload.messages[-1].content
 
-    if not user_content:
-        raise HTTPException(status_code=400, detail="Nội dung tin nhắn không được để trống.")
+    user_content = message_guard.validate_message(raw_content)
+
+    # 3. Security: Deflect Prompt Injection and Jailbreak attempts
+    injection_reply = injection_guard.check_injection(user_content)
+    if injection_reply:
+        session.add_message("user", user_content)
+        session.add_message("assistant", injection_reply)
+
+        def deflection_stream():
+            yield f"data: {json.dumps({'content': injection_reply}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+
+        return StreamingResponse(
+            deflection_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+                "X-Session-ID": session.session_id,
+                "X-User-Style": session.user_style,
+            },
+        )
 
     session.add_message("user", user_content)
     messages_history = session.get_messages_dict()
@@ -291,7 +300,6 @@ async def chat_stream_endpoint(payload: ChatRequestPayload, background_tasks: Ba
     )
 
     def event_generator():
-        import json
         full_response = []
         for chunk in llm_provider.stream_response(messages_history, session.user_style):
             full_response.append(chunk)
@@ -304,7 +312,6 @@ async def chat_stream_endpoint(payload: ChatRequestPayload, background_tasks: Ba
 
         # Asynchronously persist conversation to PostgreSQL as JSONB via dedicated daemon thread
         try:
-            import threading
             threading.Thread(
                 target=save_conversation_to_db,
                 args=(
