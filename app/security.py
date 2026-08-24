@@ -167,8 +167,8 @@ def is_sensitive_probe(text: str) -> bool:
 
 
 def sanitize_text(text: str) -> str:
-    """Helper function to validate and sanitize text inputs."""
-    try:
-        return message_guard.validate_message(text)
-    except Exception:
-        return text.strip() if text else ""
+    """Helper function to sanitize text without stripping token spaces or newlines."""
+    if not text:
+        return ""
+    # Strip null bytes and non-printable control characters only, preserve spaces and newlines
+    return re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", text)
