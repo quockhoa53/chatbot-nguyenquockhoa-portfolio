@@ -360,3 +360,59 @@ def get_stored_conversations(limit: int = 50, offset: int = 0):
         "data": fetch_conversations_from_db(limit=limit, offset=offset)
     }
 
+
+# ==============================================================================
+# AI CONTINUOUS LEARNING & INTELLIGENCE FLYWHEEL ENDPOINTS
+# ==============================================================================
+
+class ChatFeedbackPayload(BaseModel):
+    session_id: str
+    message_index: Optional[int] = None
+    rating: int  # 1 for thumbs up, -1 for thumbs down
+    comment: Optional[str] = None
+
+
+class AdoptFactPayload(BaseModel):
+    category: str
+    title: str
+    content: str
+
+
+@router.post("/chat/feedback")
+def submit_chat_feedback(payload: ChatFeedbackPayload):
+    """Captures user 👍/👎 feedback to continuously reinforce and improve model behavior."""
+    from app.learning_engine import record_feedback
+    success = record_feedback(
+        session_id=payload.session_id,
+        message_index=payload.message_index,
+        rating=payload.rating,
+        comment=payload.comment,
+    )
+    if not success:
+        return {"status": "recorded_offline", "message": "Phản hồi đã được ghi nhận."}
+    return {"status": "success", "message": "Cảm ơn bạn! Phản hồi này giúp AI học hỏi tốt hơn."}
+
+
+@router.get("/admin/ai-insights")
+def get_admin_ai_insights():
+    """Returns AI Learning metrics, knowledge gaps, top inquiries, and synthesized proposed facts."""
+    from app.learning_engine import get_ai_learning_insights
+    return {
+        "status": "success",
+        "data": get_ai_learning_insights(),
+    }
+
+
+@router.post("/admin/ai-insights/adopt-fact")
+def adopt_suggested_fact_endpoint(payload: AdoptFactPayload):
+    """1-Click adopt an AI-suggested fact into the permanent knowledge base (ai_facts table)."""
+    from app.learning_engine import adopt_suggested_fact
+    success = adopt_suggested_fact(
+        category=payload.category,
+        title=payload.title,
+        content=payload.content,
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Không thể nạp Fact mới vào cơ sở dữ liệu.")
+    return {"status": "success", "message": f"Đã nạp thành công '{payload.title}' vào Bộ nhớ AI!"}
+
