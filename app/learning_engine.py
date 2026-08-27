@@ -198,7 +198,8 @@ Dưới đây là danh sách các câu hỏi THỰC TẾ mà khách truy cập v
 {queries_text}
 
 Nhiệm vụ: Hãy phân tích các câu hỏi trên và đúc kết 2 đến 3 Fact kiến thức mới ĐƯỢC TẠO RA TRỰC TIẾP TỪ CÁC CÂU HỎI TRÊN để nạp vào Bộ nhớ AI.
-Quy tắc:
+Quy tắc BẮT BUỘC:
+- Toàn bộ Tiêu đề, Nội dung, Phân loại và Lý do đều BẮT BUỘC viết 100% bằng TIẾNG VIỆT tự nhiên, chuẩn mực.
 - Trả về DUY NHẤT một JSON array hợp lệ (không kèm markdown ngoài JSON).
 - Mỗi phần tử có 4 trường: "category", "title", "content", "reason".
 - "reason" phải trích dẫn câu hỏi thực tế của người dùng đã dẫn đến đề xuất đó.
@@ -206,23 +207,25 @@ Quy tắc:
 Ví dụ định dạng:
 [
   {{
-    "category": "Dịch vụ & Hợp tác",
-    "title": "Tiêu đề Fact ngắn gọn",
-    "content": "Nội dung chi tiết giải thích cho chủ đề",
-    "reason": "Khách hàng đã hỏi: 'Câu hỏi cụ thể...'"
+    "category": "Kinh nghiệm & Kỹ năng",
+    "title": "Kinh nghiệm thực chiến phát triển AI và Backend",
+    "content": "Nguyễn Quốc Khoa có kinh nghiệm sâu về thiết kế hệ thống Backend và ứng dụng AI...",
+    "reason": "Khách hàng đã hỏi: 'Kinh nghiệm làm việc & năng lực của Khoa?'"
   }}
 ]"""
             chat_completion = client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": "Bạn là chuyên gia phân tích dữ liệu hội thoại. Luôn trả về định dạng JSON array hợp lệ."},
+                    {"role": "system", "content": "You are a specialized JSON data analyzer. Always output valid JSON array."},
                     {"role": "user", "content": prompt}
                 ],
                 model=settings.GROQ_MODEL,
-                temperature=0.3,
-                max_tokens=600,
+                temperature=0.2,
+                max_tokens=2000,
             )
             raw_content = chat_completion.choices[0].message.content.strip()
-            json_match = re.search(r"\[[\s\S]*\]", raw_content)
+            # Strip reasoning/thinking tags emitted by reasoning models (e.g. gpt-oss-20b)
+            clean_content = re.sub(r"<think>[\s\S]*?</think>", "", raw_content, flags=re.IGNORECASE).strip()
+            json_match = re.search(r"\[[\s\S]*\]", clean_content)
             if json_match:
                 parsed = json.loads(json_match.group(0))
                 if isinstance(parsed, list):
@@ -231,44 +234,44 @@ Ví dụ định dạng:
                         if item.get("title") and item.get("title").lower() not in existing_titles
                     ]
                     if filtered:
-                        logger.info(f"🧠 [LLM Synthesizer] Successfully synthesized {len(filtered)} dynamic facts from real user queries!")
+                        logger.info(f"🧠 [LLM Synthesizer] Successfully synthesized {len(filtered)} dynamic facts from real user queries via LLM!")
                         return filtered[:4]
     except Exception as e:
-        logger.warning(f"Groq dynamic fact synthesis failed ({e}). Falling back to pattern-based extractor.")
+        logger.error(f"Groq dynamic fact synthesis error: {e}")
 
-    # 2. Dynamic pattern-based extractor as resilient fallback based on actual queries
-    results = []
-    for q in unique_queries:
-        q_lower = q.lower()
-        if any(w in q_lower for w in ["freelance", "thuê", "giá", "làm web", "dự án ngoài"]):
-            title = "Khả năng nhận dự án Freelance & Báo giá phần mềm"
-            if title.lower() not in existing_titles and not any(r["title"] == title for r in results):
-                results.append({
-                    "category": "Dịch vụ & Hợp tác",
-                    "title": title,
-                    "content": "Nguyễn Quốc Khoa sẵn sàng nhận các dự án phát triển phần mềm Freelance, thiết kế hệ thống web trọn gói và tư vấn kiến trúc AI/Microservices.",
-                    "reason": f"Khách hàng đã hỏi: \"{q}\""
-                })
-        elif any(w in q_lower for w in ["ai", "claude", "chatgpt", "llm", "tài liệu"]):
-            title = "Tài liệu và phương pháp làm việc hiệu quả với AI"
-            if title.lower() not in existing_titles and not any(r["title"] == title for r in results):
-                results.append({
-                    "category": "Kinh nghiệm & Kỹ năng",
-                    "title": title,
-                    "content": "Khoa thường xuyên ứng dụng AI Agents, Prompt Engineering và Claude/GPT để tối ưu tốc độ lập trình và tự động hóa quy trình phần mềm.",
-                    "reason": f"Khách hàng đã hỏi: \"{q}\""
-                })
-        elif any(w in q_lower for w in ["cà phê", "gặp mặt", "giao lưu", "hài hước"]):
-            title = "Sở thích giao lưu cà phê & Kết nối công nghệ"
-            if title.lower() not in existing_titles and not any(r["title"] == title for r in results):
-                results.append({
-                    "category": "Đời tư & Sở thích",
-                    "title": title,
-                    "content": "Khoa luôn cởi mở gặp gỡ, giao lưu cà phê chia sẻ về công nghệ, kiến trúc backend và khởi nghiệp tại khu vực TP.HCM.",
-                    "reason": f"Khách hàng đã hỏi: \"{q}\""
-                })
+    # Fallback to Google Gemini LLM if configured
+    try:
+        import google.generativeai as genai
+        if settings.GEMINI_API_KEY:
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            model = genai.GenerativeModel(settings.GEMINI_MODEL)
+            prompt = f"""Bạn là AI phân tích dữ liệu Portfolio của kỹ sư Nguyễn Quốc Khoa.
+Dưới đây là các câu hỏi thực tế người dùng vừa hỏi AI:
+{queries_text}
 
-    return results[:3]
+Hãy phân tích và tạo 2-3 Fact kiến thức JSON:
+[
+  {{
+    "category": "Dịch vụ & Hợp tác",
+    "title": "Tiêu đề Fact",
+    "content": "Nội dung giải thích chi tiết",
+    "reason": "Khách hàng đã hỏi: '...'"
+  }}
+]"""
+            resp = model.generate_content(prompt)
+            raw_text = resp.text.strip()
+            json_match = re.search(r"\[[\s\S]*\]", raw_text)
+            if json_match:
+                parsed = json.loads(json_match.group(0))
+                if isinstance(parsed, list):
+                    return [
+                        item for item in parsed 
+                        if item.get("title") and item.get("title").lower() not in existing_titles
+                    ][:4]
+    except Exception as e:
+        logger.error(f"Gemini dynamic fact synthesis error: {e}")
+
+    return []
 
 
 def adopt_suggested_fact(category: str, title: str, content: str) -> bool:
