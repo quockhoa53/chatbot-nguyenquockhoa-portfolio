@@ -113,19 +113,19 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
             link = f" (Link: [{a.get('title')}]({a.get('detail_url')}))" if a.get("detail_url") else ""
             prompt_parts.append(f"* **{a.get('title')}** ({a.get('category', 'Kiến thức')}): {summary}{link}")
 
-    # 7. AI Extra Facts & Special Sidecar Knowledge
+    # 7. AI Extra Facts & Sidecar Knowledge (Bảng ai_facts)
     if ai_facts:
         prompt_parts.append("\n=== 7. THÔNG TIN BỔ SUNG & BỘ NHỚ ĐẶC BIỆT (Bảng ai_facts) ===")
         for idx, f in enumerate(ai_facts, 1):
-            content = (f.get("content") or "")[:120]
-            prompt_parts.append(f"* **{f.get('title')}** ({f.get('category')}): {content}")
+            content = f.get("content") or ""
+            prompt_parts.append(f"* **{f.get('title')}** ({f.get('category', 'Thông tin')}): {content}")
 
     # 8. Resumes / CV Profiles
     if resumes:
         prompt_parts.append("\n=== 8. DANH SÁCH BẢN CV & HỒ SƠ ỨNG TUYỂN (Bảng resumes) ===")
         for idx, r in enumerate(resumes, 1):
             primary_tag = " [⭐ CV CHÍNH]" if r.get("is_primary") else ""
-            summary = (r.get("summary") or "")[:100]
+            summary = (r.get("summary") or "")[:200]
             link = f" (Link tải: [{r.get('title')}]({r.get('download_url')}))" if r.get("download_url") else ""
             prompt_parts.append(f"* **{r.get('title')}{primary_tag}** (Vị trí: {r.get('target_role')}): {summary}{link}")
 
@@ -134,15 +134,16 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
     
     # 1. Câu hỏi về Nguyễn Quốc Khoa & Portfolio
     prompt_parts.append("1. CÂU HỎI VỀ NGUYỄN QUỐC KHOA, PORTFOLIO & THÔNG TIN CÁ NHÂN (GROUNDED PORTFOLIO MODE):")
-    prompt_parts.append("   - BẮT BUỘC 100% lấy chính xác từ KHO DỮ LIỆU THỰC TẾ phía trên:")
-    prompt_parts.append("     + Hỏi về 'phương châm code', 'triết lý phát triển', 'quan điểm làm việc', 'phong cách lập trình' -> Đọc và tổng hợp từ mục [1. THÔNG TIN HỒ SƠ & LIÊN HỆ] (trường Tóm tắt chuyên môn và Giới thiệu chi tiết Bio).")
-    prompt_parts.append("     + Hỏi về 'học vấn', 'trường đại học', 'học trường nào', 'bằng cấp' -> Đọc và trả lời từ trường [🎓 Học vấn & Đào tạo].")
-    prompt_parts.append("     + Hỏi về 'kinh nghiệm', 'công ty', 'thời gian làm việc' -> Đọc từ mục [2. LỊCH SỬ KINH NGHIỆM LÀM VIỆC TẠI CÁC CÔNG TY].")
-    prompt_parts.append("     + Hỏi về bài viết kiến thức theo chủ đề (ví dụ: database, cơ sở dữ liệu, Clean Architecture, tối ưu hóa, Kafka, Spring Boot, AI...) -> Quét toàn bộ tiêu đề, danh mục, tóm tắt và nội dung tại mục [6. BÀI VIẾT CHIA SẺ KIẾN THỨC] để giới thiệu chính xác kèm đường link tương ứng.")
-    prompt_parts.append("     + Hỏi về dự án thực tế -> Giới thiệu các dự án phù hợp trong mục [5. CÁC DỰ ÁN TIÊU BIỂU] kèm đường link tương ứng.")
-    prompt_parts.append("     + Hỏi về 'CV', 'hồ sơ xin việc', 'resume', 'tải CV', 'xin CV của Khoa' -> Đọc mục [8. DANH SÁCH BẢN CV & HỒ SƠ ỨNG TUYỂN] và giới thiệu bản CV phù hợp nhất kèm link tải tương ứng (hoặc dẫn link CV chính) để hệ thống render thẻ Tải CV trực quan.")
-    prompt_parts.append("     + Hỏi về các chủ đề đời tư, bạn bè, người yêu, sở thích, thú cưng, quan điểm cá nhân, v.v. của Khoa -> Quét và trả lời từ mục [7. THÔNG TIN BỔ SUNG & BỘ NHỚ ĐẶC BIỆT] (nếu có thông tin).")
-    prompt_parts.append("     + Nếu một thông tin cá nhân/đời tư của Khoa hoàn toàn không có trong kho dữ liệu: Trả lời tự nhiên, ngắn gọn rằng anh Khoa hiện chưa chia sẻ thông tin này trên website.")
+    prompt_parts.append("   - Tra cứu và tổng hợp thông tin từ toàn bộ các mục dữ liệu được cung cấp ở trên:")
+    prompt_parts.append("     + Hồ sơ cá nhân, học vấn, triết lý lập trình, liên hệ -> Mục 1")
+    prompt_parts.append("     + Lịch sử kinh nghiệm và công ty -> Mục 2")
+    prompt_parts.append("     + Kỹ năng và công nghệ -> Mục 3 & 4")
+    prompt_parts.append("     + Dự án tiêu biểu -> Mục 5")
+    prompt_parts.append("     + Bài viết chia sẻ kiến thức -> Mục 6")
+    prompt_parts.append("     + Thông tin đời sống, biệt danh, tên gọi thân mật ở nhà, sở thích, mối quan hệ, thói quen và các fact đặc biệt -> Mục 7 (Bảng ai_facts).")
+    prompt_parts.append("     + Hồ sơ CV và link tải -> Mục 8")
+    prompt_parts.append("   - HIỂU NGỮ CẢNH TIẾNG VIỆT TỰ NHIÊN: Linh hoạt phân tích ý định của người dùng qua các từ đồng nghĩa và cách diễn đạt thân mật (Ví dụ: hỏi về 'tên ở nhà' / 'ở nhà tên gì' là hỏi về Biệt danh/Tên thân mật cá nhân trong Mục 7, không suy diễn máy móc thành địa chỉ nhà).")
+    prompt_parts.append("   - Nếu thông tin hoàn toàn không có trong kho dữ liệu: Trả lời tự nhiên, lịch sự rằng anh Khoa hiện chưa chia sẻ thông tin này trên website.")
 
     # 2. Câu hỏi mở rộng, kiến thức tổng quát ngoài luồng
     prompt_parts.append("2. CÂU HỎI MỞ RỘNG NGOÀI LUỒNG & KIẾN THỨC XÃ HỘI, GIẢI TRÍ, KHOA HỌC (OPEN GENERAL KNOWLEDGE MODE):")
