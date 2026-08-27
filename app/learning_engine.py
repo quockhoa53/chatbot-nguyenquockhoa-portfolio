@@ -133,19 +133,25 @@ def get_ai_learning_insights() -> Dict[str, Any]:
             reverse=True
         )[:8]
 
-        # 4. Fetch already adopted AI facts to prevent duplicate suggestions
-        cursor.execute("SELECT title, category FROM ai_facts WHERE is_active = TRUE;")
+        # 4. Fetch already known AI facts and knowledge to prevent duplicate suggestions
+        cursor.execute("SELECT title, category, content FROM ai_facts WHERE is_active = TRUE;")
         existing_facts = cursor.fetchall() or []
+        existing_facts_list = [f"{f.get('title')}: {f.get('content', '')}" for f in existing_facts]
         existing_titles = {f.get("title", "").lower() for f in existing_facts}
 
         cursor.close()
         conn.close()
 
-        # Build dynamic default suggested facts if there are queries
+        # Build dynamic suggested facts if there are queries
         suggested_facts = []
         if unresolved_queries or user_queries:
-            # Generate synthesized suggestions based on recent inquiries
-            suggested_facts = synthesize_facts_from_queries(user_queries[:20], unresolved_queries[:10], existing_titles)
+            # Generate synthesized suggestions based on recent inquiries with strict deduplication
+            suggested_facts = synthesize_facts_from_queries(
+                user_queries[:25], 
+                unresolved_queries[:10], 
+                existing_facts_list,
+                existing_titles
+            )
 
         return {
             "total_conversations": total_convs,
@@ -176,17 +182,23 @@ def get_ai_learning_insights() -> Dict[str, Any]:
         }
 
 
-def synthesize_facts_from_queries(all_queries: List[str], unresolved_queries: List[str], existing_titles: set) -> List[Dict[str, Any]]:
-    """Uses Groq / LLM to dynamically synthesize high-value proposed facts from actual user queries."""
+def synthesize_facts_from_queries(
+    all_queries: List[str], 
+    unresolved_queries: List[str], 
+    existing_facts_list: List[str],
+    existing_titles: set
+) -> List[Dict[str, Any]]:
+    """Uses Groq / LLM to dynamically synthesize proposed facts only for truly unaddressed knowledge gaps."""
     if not all_queries:
         return []
 
     # Prepare unique questions from real user logs
-    unique_queries = list(dict.fromkeys([q.strip() for q in all_queries if len(q.strip()) > 4]))[:20]
+    unique_queries = list(dict.fromkeys([q.strip() for q in all_queries if len(q.strip()) > 4]))[:25]
     if not unique_queries:
         return []
 
     queries_text = "\n".join([f"- {q}" for q in unique_queries])
+    existing_text = "\n".join([f"- {f}" for f in existing_facts_list[:30]]) if existing_facts_list else "(Hiện chưa có fact nào trong bộ nhớ)"
 
     # 1. Try Groq AI dynamic synthesis
     try:
@@ -194,25 +206,28 @@ def synthesize_facts_from_queries(all_queries: List[str], unresolved_queries: Li
         if settings.GROQ_API_KEY:
             client = Groq(api_key=settings.GROQ_API_KEY)
             prompt = f"""Bạn là AI phân tích dữ liệu Portfolio của kỹ sư Nguyễn Quốc Khoa.
-Dưới đây là danh sách các câu hỏi THỰC TẾ mà khách truy cập vừa đặt cho AI Chatbot:
+
+=== DANH SÁCH THÔNG TIN & FACT ĐÃ CÓ TRONG KHO (ĐÃ BIẾT): ===
+{existing_text}
+
+=== DANH SÁCH CÂU HỎI THỰC TẾ GẦN ĐÂY CỦA KHÁCH TRUY CẬP: ===
 {queries_text}
 
-Nhiệm vụ: Hãy phân tích các câu hỏi trên và đúc kết 2 đến 3 Fact kiến thức mới ĐƯỢC TẠO RA TRỰC TIẾP TỪ CÁC CÂU HỎI TRÊN để nạp vào Bộ nhớ AI.
-Quy tắc BẮT BUỘC:
-- Toàn bộ Tiêu đề, Nội dung, Phân loại và Lý do đều BẮT BUỘC viết 100% bằng TIẾNG VIỆT tự nhiên, chuẩn mực.
-- Trả về DUY NHẤT một JSON array hợp lệ (không kèm markdown ngoài JSON).
-- Mỗi phần tử có 4 trường: "category", "title", "content", "reason".
-- "reason" phải trích dẫn câu hỏi thực tế của người dùng đã dẫn đến đề xuất đó.
+Nhiệm vụ: Phân tích các câu hỏi và CHỈ ĐỀ XUẤT NHỮNG FACT MỚI mà trong kho dữ liệu trên CHƯA CÓ HOẶC CÒN THIẾU THÔNG TIN ĐỂ TRẢ LỜI.
 
-Ví dụ định dạng:
+Quy tắc BẮT BUỘC (RẤT QUAN TRỌNG):
+1. TUYỆT ĐỐI KHÔNG đề xuất lại những thông tin ĐÃ CÓ SẴN hoặc TRÙNG LẶP NGỮ NGHĨA với kho dữ liệu trên (Ví dụ: nếu đã có biệt danh/tên ở nhà, sở thích, thông tin liên hệ hay kỹ năng đã có thì KHÔNG đề xuất lại).
+2. Nếu các câu hỏi của khách ĐÃ ĐƯỢC GIẢI ĐÁP ĐẦY ĐỦ bởi các Fact đã biết, BẮT BUỘC trả về mảng rỗng `[]`.
+3. Nếu có khoảng trống tri thức thật sự (câu hỏi mà kho dữ liệu hoàn toàn chưa có), trả về JSON array chứa 1 đến 3 Fact mới:
 [
   {{
-    "category": "Kinh nghiệm & Kỹ năng",
-    "title": "Kinh nghiệm thực chiến phát triển AI và Backend",
-    "content": "Nguyễn Quốc Khoa có kinh nghiệm sâu về thiết kế hệ thống Backend và ứng dụng AI...",
-    "reason": "Khách hàng đã hỏi: 'Kinh nghiệm làm việc & năng lực của Khoa?'"
+    "category": "Thông tin cá nhân | Dịch vụ & Hợp tác | Kỹ năng & Kinh nghiệm",
+    "title": "Tiêu đề Fact ngắn gọn",
+    "content": "Nội dung chi tiết giải thích cho câu hỏi đó",
+    "reason": "Khách hàng đã hỏi: '...'"
   }}
-]"""
+]
+Chỉ xuất JSON array hợp lệ."""
             chat_completion = client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": "You are a specialized JSON data analyzer. Always output valid JSON array."},
@@ -234,8 +249,9 @@ Ví dụ định dạng:
                         if item.get("title") and item.get("title").lower() not in existing_titles
                     ]
                     if filtered:
-                        logger.info(f"🧠 [LLM Synthesizer] Successfully synthesized {len(filtered)} dynamic facts from real user queries via LLM!")
+                        logger.info(f"🧠 [LLM Synthesizer] Successfully synthesized {len(filtered)} NEW facts from genuine knowledge gaps!")
                         return filtered[:4]
+                    return []
     except Exception as e:
         logger.error(f"Groq dynamic fact synthesis error: {e}")
 
