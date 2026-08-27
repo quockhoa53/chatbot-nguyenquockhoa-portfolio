@@ -89,7 +89,6 @@ def get_ai_learning_insights() -> Dict[str, Any]:
             LIMIT 50;
         """)
         rows = cursor.fetchall() or []
-        
         pos_count = 0
         neg_count = 0
         user_queries: List[str] = []
@@ -98,11 +97,16 @@ def get_ai_learning_insights() -> Dict[str, Any]:
         for r in rows:
             meta = r.get("metadata") or {}
             feedbacks = meta.get("feedbacks", [])
+            neg_indices = set()
             for f in feedbacks:
-                if f.get("rating", 0) > 0:
+                rating = f.get("rating", 0)
+                if rating > 0:
                     pos_count += 1
-                elif f.get("rating", 0) < 0:
+                elif rating < 0:
                     neg_count += 1
+                    msg_idx = f.get("message_index")
+                    if msg_idx is not None:
+                        neg_indices.add(msg_idx)
 
             msgs = r.get("messages") or []
             for idx, m in enumerate(msgs):
@@ -110,14 +114,17 @@ def get_ai_learning_insights() -> Dict[str, Any]:
                     q = (m.get("content") or "").strip()
                     if len(q) > 3:
                         user_queries.append(q)
-                        # Check if assistant subsequent reply indicated missing information
-                        if idx + 1 < len(msgs) and msgs[idx + 1].get("role") == "assistant":
+                        # 1. Highest Priority: Question led to a DISLIKED reply (👎)
+                        if idx + 1 in neg_indices:
+                            unresolved_queries.insert(0, q)
+                        # 2. Medium Priority: Assistant replied that it lacked info
+                        elif idx + 1 < len(msgs) and msgs[idx + 1].get("role") == "assistant":
                             reply = msgs[idx + 1].get("content") or ""
                             if any(k in reply.lower() for k in ["chưa có thông tin", "chưa chia sẻ", "không tìm thấy", "chưa được cập nhật"]):
                                 unresolved_queries.append(q)
 
         total_ratings = pos_count + neg_count
-        satisfaction_rate = round((pos_count / total_ratings * 100)) if total_ratings > 0 else 98
+        satisfaction_rate = round((pos_count / total_ratings * 100)) if total_ratings > 0 else 100
 
         # 3. Simple cluster of top inquiries
         inquiry_counts = {}
