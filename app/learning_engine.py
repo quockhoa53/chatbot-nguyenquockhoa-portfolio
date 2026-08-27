@@ -177,36 +177,98 @@ def get_ai_learning_insights() -> Dict[str, Any]:
 
 
 def synthesize_facts_from_queries(all_queries: List[str], unresolved_queries: List[str], existing_titles: set) -> List[Dict[str, Any]]:
-    """Synthesizes structured fact suggestions ready for 1-click adoption."""
-    suggestions = []
+    """Uses Groq / LLM to dynamically synthesize high-value proposed facts from actual user queries."""
+    if not all_queries:
+        return []
 
-    # High priority heuristics based on common developer inquiries
-    defaults = [
-        {
-            "category": "Dịch vụ & Hợp tác",
-            "title": "Nhận dự án Freelance & Tư vấn kiến trúc AI / Full-stack",
-            "content": "Nguyễn Quốc Khoa sẵn sàng nhận các dự án phát triển phần mềm Freelance, tư vấn tối ưu hóa cơ sở dữ liệu, xây dựng hệ thống AI Agent và Chatbot thông minh cho doanh nghiệp vừa và nhỏ.",
-            "reason": "Nhiều khách hàng hỏi về khả năng nhận dự án ngoài giờ & tư vấn kỹ thuật."
-        },
-        {
-            "category": "Kinh nghiệm & Kỹ năng",
-            "title": "Kinh nghiệm thực chiến Microservices & Docker / Kubernetes",
-            "content": "Nguyễn Quốc Khoa có kinh nghiệm xây dựng hệ thống phân tán chịu tải cao (High Concurrency), đóng gói container với Docker, cấu hình CI/CD tự động và triển khai cụm dịch vụ an toàn trên Cloud.",
-            "reason": "Nhà tuyển dụng & Tech Lead hay quan tâm đến kỹ năng DevOps & Microservices."
-        },
-        {
-            "category": "Hình thức làm việc",
-            "title": "Hình thức làm việc và thời gian phản hồi",
-            "content": "Nguyễn Quốc Khoa có thể làm việc linh hoạt cả Onsite tại TP.HCM lẫn Remote toàn thời gian hoặc bán thời gian. Thời gian phản hồi email hoặc Zalo thường trong vòng 1-2 giờ làm việc.",
-            "reason": "Khách truy cập hỏi về địa điểm làm việc và thời gian liên lạc."
-        }
-    ]
+    # Prepare unique questions from real user logs
+    unique_queries = list(dict.fromkeys([q.strip() for q in all_queries if len(q.strip()) > 4]))[:20]
+    if not unique_queries:
+        return []
 
-    for d in defaults:
-        if d["title"].lower() not in existing_titles:
-            suggestions.append(d)
+    queries_text = "\n".join([f"- {q}" for q in unique_queries])
 
-    return suggestions[:4]
+    # 1. Try Groq AI dynamic synthesis
+    try:
+        from groq import Groq
+        if settings.GROQ_API_KEY:
+            client = Groq(api_key=settings.GROQ_API_KEY)
+            prompt = f"""Bạn là AI phân tích dữ liệu Portfolio của kỹ sư Nguyễn Quốc Khoa.
+Dưới đây là danh sách các câu hỏi THỰC TẾ mà khách truy cập vừa đặt cho AI Chatbot:
+{queries_text}
+
+Nhiệm vụ: Hãy phân tích các câu hỏi trên và đúc kết 2 đến 3 Fact kiến thức mới ĐƯỢC TẠO RA TRỰC TIẾP TỪ CÁC CÂU HỎI TRÊN để nạp vào Bộ nhớ AI.
+Quy tắc:
+- Trả về DUY NHẤT một JSON array hợp lệ (không kèm markdown ngoài JSON).
+- Mỗi phần tử có 4 trường: "category", "title", "content", "reason".
+- "reason" phải trích dẫn câu hỏi thực tế của người dùng đã dẫn đến đề xuất đó.
+
+Ví dụ định dạng:
+[
+  {{
+    "category": "Dịch vụ & Hợp tác",
+    "title": "Tiêu đề Fact ngắn gọn",
+    "content": "Nội dung chi tiết giải thích cho chủ đề",
+    "reason": "Khách hàng đã hỏi: 'Câu hỏi cụ thể...'"
+  }}
+]"""
+            chat_completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": "Bạn là chuyên gia phân tích dữ liệu hội thoại. Luôn trả về định dạng JSON array hợp lệ."},
+                    {"role": "user", "content": prompt}
+                ],
+                model=settings.GROQ_MODEL,
+                temperature=0.3,
+                max_tokens=600,
+            )
+            raw_content = chat_completion.choices[0].message.content.strip()
+            json_match = re.search(r"\[[\s\S]*\]", raw_content)
+            if json_match:
+                parsed = json.loads(json_match.group(0))
+                if isinstance(parsed, list):
+                    filtered = [
+                        item for item in parsed 
+                        if item.get("title") and item.get("title").lower() not in existing_titles
+                    ]
+                    if filtered:
+                        logger.info(f"🧠 [LLM Synthesizer] Successfully synthesized {len(filtered)} dynamic facts from real user queries!")
+                        return filtered[:4]
+    except Exception as e:
+        logger.warning(f"Groq dynamic fact synthesis failed ({e}). Falling back to pattern-based extractor.")
+
+    # 2. Dynamic pattern-based extractor as resilient fallback based on actual queries
+    results = []
+    for q in unique_queries:
+        q_lower = q.lower()
+        if any(w in q_lower for w in ["freelance", "thuê", "giá", "làm web", "dự án ngoài"]):
+            title = "Khả năng nhận dự án Freelance & Báo giá phần mềm"
+            if title.lower() not in existing_titles and not any(r["title"] == title for r in results):
+                results.append({
+                    "category": "Dịch vụ & Hợp tác",
+                    "title": title,
+                    "content": "Nguyễn Quốc Khoa sẵn sàng nhận các dự án phát triển phần mềm Freelance, thiết kế hệ thống web trọn gói và tư vấn kiến trúc AI/Microservices.",
+                    "reason": f"Khách hàng đã hỏi: \"{q}\""
+                })
+        elif any(w in q_lower for w in ["ai", "claude", "chatgpt", "llm", "tài liệu"]):
+            title = "Tài liệu và phương pháp làm việc hiệu quả với AI"
+            if title.lower() not in existing_titles and not any(r["title"] == title for r in results):
+                results.append({
+                    "category": "Kinh nghiệm & Kỹ năng",
+                    "title": title,
+                    "content": "Khoa thường xuyên ứng dụng AI Agents, Prompt Engineering và Claude/GPT để tối ưu tốc độ lập trình và tự động hóa quy trình phần mềm.",
+                    "reason": f"Khách hàng đã hỏi: \"{q}\""
+                })
+        elif any(w in q_lower for w in ["cà phê", "gặp mặt", "giao lưu", "hài hước"]):
+            title = "Sở thích giao lưu cà phê & Kết nối công nghệ"
+            if title.lower() not in existing_titles and not any(r["title"] == title for r in results):
+                results.append({
+                    "category": "Đời tư & Sở thích",
+                    "title": title,
+                    "content": "Khoa luôn cởi mở gặp gỡ, giao lưu cà phê chia sẻ về công nghệ, kiến trúc backend và khởi nghiệp tại khu vực TP.HCM.",
+                    "reason": f"Khách hàng đã hỏi: \"{q}\""
+                })
+
+    return results[:3]
 
 
 def adopt_suggested_fact(category: str, title: str, content: str) -> bool:
