@@ -7,7 +7,7 @@ import re
 import threading
 from typing import List, Optional
 import httpx
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -15,7 +15,7 @@ from app.config import settings
 from app.database import fetch_conversations_from_db, get_live_portfolio_data, save_conversation_to_db
 from app.llm_provider import llm_provider
 from app.memory import session_manager
-from app.security import injection_guard, message_guard, rate_limiter
+from app.security import injection_guard, message_guard, rate_limiter, verify_internal_api_key
 from app.style_analyzer import STYLE_PROMPT_DIRECTIVES, style_analyzer
 
 logger = logging.getLogger("routes")
@@ -64,7 +64,7 @@ def clean_text_for_tts(raw_text: str) -> str:
     return text
 
 
-@router.post("/tts")
+@router.post("/tts", dependencies=[Depends(verify_internal_api_key)])
 async def text_to_speech_endpoint(request: Request, payload: TTSRequestPayload):
     """Multi-provider Neural TTS with IP rate limiting (15 req/min), text sanitization & caching."""
     # 1. Security: IP Rate Limiting Guard
@@ -166,7 +166,7 @@ def health():
     }
 
 
-@router.get("/suggestions")
+@router.get("/suggestions", dependencies=[Depends(verify_internal_api_key)])
 def get_suggestions():
     return {
         "suggestions": [
@@ -178,7 +178,7 @@ def get_suggestions():
     }
 
 
-@router.post("/chat", response_model=ChatResponsePayload)
+@router.post("/chat", response_model=ChatResponsePayload, dependencies=[Depends(verify_internal_api_key)])
 async def chat_endpoint(request: Request, payload: ChatRequestPayload, background_tasks: BackgroundTasks):
     # 1. Security: IP Rate Limiting Guard (Max 20 chat requests/min per IP)
     rate_limiter.check_rate_limit(request, endpoint_type="chat", max_requests=20, window_seconds=60)
@@ -251,7 +251,7 @@ async def chat_endpoint(request: Request, payload: ChatRequestPayload, backgroun
     )
 
 
-@router.post("/chat/stream")
+@router.post("/chat/stream", dependencies=[Depends(verify_internal_api_key)])
 async def chat_stream_endpoint(request: Request, payload: ChatRequestPayload, background_tasks: BackgroundTasks):
     # 1. Security: IP Rate Limiting Guard (Max 20 chat requests/min per IP)
     rate_limiter.check_rate_limit(request, endpoint_type="chat", max_requests=20, window_seconds=60)
@@ -340,7 +340,7 @@ async def chat_stream_endpoint(request: Request, payload: ChatRequestPayload, ba
     )
 
 
-@router.get("/session/{session_id}")
+@router.get("/session/{session_id}", dependencies=[Depends(verify_internal_api_key)])
 def get_session_info(session_id: str):
     if session_id not in session_manager.sessions:
         raise HTTPException(status_code=404, detail="Session không tồn tại hoặc đã hết hạn.")
@@ -353,7 +353,7 @@ def get_session_info(session_id: str):
     }
 
 
-@router.get("/conversations")
+@router.get("/conversations", dependencies=[Depends(verify_internal_api_key)])
 def get_stored_conversations(limit: int = 50, offset: int = 0):
     """Admin / Data collection endpoint retrieving stored conversations from PostgreSQL."""
     return {
@@ -378,7 +378,7 @@ class AdoptFactPayload(BaseModel):
     content: str
 
 
-@router.post("/chat/feedback")
+@router.post("/chat/feedback", dependencies=[Depends(verify_internal_api_key)])
 def submit_chat_feedback(payload: ChatFeedbackPayload):
     """Captures user 👍/👎 feedback to continuously reinforce and improve model behavior."""
     from app.learning_engine import record_feedback
@@ -393,7 +393,7 @@ def submit_chat_feedback(payload: ChatFeedbackPayload):
     return {"status": "success", "message": "Cảm ơn bạn! Phản hồi này giúp AI học hỏi tốt hơn."}
 
 
-@router.get("/admin/ai-insights")
+@router.get("/admin/ai-insights", dependencies=[Depends(verify_internal_api_key)])
 def get_admin_ai_insights():
     """Returns AI Learning metrics, knowledge gaps, top inquiries, and synthesized proposed facts."""
     from app.learning_engine import get_ai_learning_insights
@@ -403,7 +403,7 @@ def get_admin_ai_insights():
     }
 
 
-@router.post("/admin/ai-insights/adopt-fact")
+@router.post("/admin/ai-insights/adopt-fact", dependencies=[Depends(verify_internal_api_key)])
 def adopt_suggested_fact_endpoint(payload: AdoptFactPayload):
     """1-Click adopt an AI-suggested fact into the permanent knowledge base (ai_facts table)."""
     from app.learning_engine import adopt_suggested_fact

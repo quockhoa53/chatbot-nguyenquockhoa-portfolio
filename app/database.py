@@ -47,17 +47,12 @@ def get_db_connection():
         except Exception as e:
             logger.warning(f"PostgreSQL connection via DATABASE_URL failed ({e}).")
 
-    # Determine credentials with auto-fallback to Neon cloud production if local dummy credentials on cloud
+    # Determine credentials strictly from environment settings
     db_user = settings.DB_USER
     db_pass = settings.DB_PASSWORD
     db_host = settings.DB_HOST
     db_name = settings.DB_NAME
     db_port = settings.DB_PORT
-
-    if "neon.tech" in db_host:
-        db_user = "neondb_owner"
-        db_pass = "npg_4LRx7pFVeDnr"
-        db_name = "neondb"
 
     # 2. Try direct Neon PostgreSQL URI (100% reliable across Docker/Render/Cloud environments)
     try:

@@ -17,16 +17,12 @@ class Settings:
     _raw_groq_model = os.getenv("GROQ_MODEL", "").strip()
     GROQ_MODEL: str = _raw_groq_model if (_raw_groq_model and "llama" not in _raw_groq_model and "mixtral" not in _raw_groq_model and "gemma" not in _raw_groq_model) else "openai/gpt-oss-120b"
 
-    # Database Settings (Safe public access only - fallback to Neon production if local dummy credentials on cloud)
-    _raw_db_host = os.getenv("DB_HOST", "").strip()
-    DB_HOST: str = _raw_db_host if (_raw_db_host and _raw_db_host not in ["localhost", "127.0.0.1", "db"]) else "ep-gentle-dew-axryx2mu-pooler.c-4.us-east-2.aws.neon.tech"
+    # Database Settings (Loaded strictly from Environment Variables)
+    DB_HOST: str = os.getenv("DB_HOST", "").strip()
     DB_PORT: int = int(os.getenv("DB_PORT", "5432"))
-    _raw_db_name = os.getenv("DB_NAME", "").strip()
-    DB_NAME: str = _raw_db_name if (_raw_db_name and _raw_db_name not in ["portfolio", "postgres"]) else "neondb"
-    _raw_db_user = os.getenv("DB_USER", "").strip()
-    DB_USER: str = _raw_db_user if (_raw_db_user and _raw_db_user not in ["postgres", "root", "admin"]) else "neondb_owner"
-    _raw_db_pass = os.getenv("DB_PASSWORD", "").strip()
-    DB_PASSWORD: str = _raw_db_pass if (_raw_db_pass and _raw_db_pass not in ["postgres", "admin", "root", "password"]) else "npg_4LRx7pFVeDnr"
+    DB_NAME: str = os.getenv("DB_NAME", "").strip()
+    DB_USER: str = os.getenv("DB_USER", "").strip()
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "").strip()
 
     _raw_be_url = os.getenv("PORTFOLIO_BE_URL", "").strip()
     PORTFOLIO_BE_URL: str = _raw_be_url if (_raw_be_url and "localhost" not in _raw_be_url) else "https://nguyenquockhoa.onrender.com/api/v1"
@@ -43,17 +39,20 @@ class Settings:
 
     # Text-to-Speech Settings (Default: "edge-tts" for 100% Free Unlimited Native Vietnamese Voice)
     TTS_PROVIDER: str = os.getenv("TTS_PROVIDER", "edge-tts").lower()
-    EDGE_TTS_VOICE: str = os.getenv("EDGE_TTS_VOICE", "vi-VN-HoaiMyNeural").strip()  # vi-VN-HoaiMyNeural (Nữ miền Nam) hoặc vi-VN-NamMinhNeural (Nam miền Nam)
+    EDGE_TTS_VOICE: str = os.getenv("EDGE_TTS_VOICE", "vi-VN-HoaiMyNeural").strip()
     EDGE_TTS_RATE: str = os.getenv("EDGE_TTS_RATE", "-2%").strip()
 
     # ElevenLabs Text-to-Speech Settings (Alternative Cloud Provider)
     ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "").strip()
-    ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "x4KAhuXs2G8TfK9Zr7Q4").strip()
+    ELEVENLABS_VOICE_ID: str = os.getenv("ELEVENLABS_VOICE_ID", "").strip()
     ELEVENLABS_MODEL_ID: str = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2").strip()
 
     # Session / Cache Settings
     SESSION_TTL_HOURS: int = 24
     KNOWLEDGE_CACHE_TTL_MINUTES: int = 5
+
+    # Internal Security Secret (Loaded strictly from Environment Variable)
+    INTERNAL_API_SECRET: str = os.getenv("CHATBOT_INTERNAL_SECRET", "").strip()
 
     @property
     def cors_origin_list(self) -> List[str]:

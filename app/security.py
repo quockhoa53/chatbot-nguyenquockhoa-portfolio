@@ -172,3 +172,26 @@ def sanitize_text(text: str) -> str:
         return ""
     # Strip null bytes and non-printable control characters only, preserve spaces and newlines
     return re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", text)
+
+
+def verify_internal_api_key(request: Request):
+    """
+    Verifies that incoming requests originate from the authorized Backend Gateway (PORTFOLIO_BE).
+    Blocks direct public access from unauthorized scrapers or malicious actors.
+    """
+    from app.config import settings
+    secret = settings.INTERNAL_API_SECRET
+    if not secret:
+        return True
+
+    received_key = request.headers.get("X-Internal-API-Key")
+    if not received_key or received_key.strip() != secret:
+        logger.warning(
+            f"🚫 [Access Denied] Unauthorized direct access attempt to {request.url.path} from IP {rate_limiter.get_client_ip(request)}"
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Truy cập trực tiếp bị từ chối. Mọi yêu cầu phải đi qua Backend Gateway."
+        )
+    return True
+
