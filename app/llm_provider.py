@@ -152,15 +152,15 @@ class LLMProvider:
     def _get_ordered_groq_models(self) -> List[str]:
         """
         Smart Load Router & Circuit Breaker:
-        Prioritizes models that are not in cooldown (cooling down from 429).
+        Prioritizes healthy Groq models that are not in rate-limit cooldown.
         """
         all_models = list(dict.fromkeys([
             self.groq_model_name,
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+            "mixtral-8x7b-32768",
             "qwen/qwen3.6-27b",
             "openai/gpt-oss-120b",
-            "openai/gpt-oss-20b",
-            "groq/compound-mini",
-            "groq/compound",
         ]))
 
         now = time.time()
@@ -172,7 +172,7 @@ class LLMProvider:
     def _mark_model_cooldown(self, model_name: str, seconds: float = 25.0):
         """Marks a model as cooling down after hitting rate limits (429/TPM)."""
         self._model_cooldowns[model_name] = time.time() + seconds
-        logger.warning(f"⚡ [CircuitBreaker] Model {model_name} in cooldown for {seconds}s. Next requests will route to healthy models.")
+        logger.warning(f"⚡ [CircuitBreaker] Model {model_name} in cooldown for {seconds}s. Routing to healthy models.")
 
     def generate_response(
         self,
@@ -185,9 +185,37 @@ class LLMProvider:
 
         trimmed_messages = messages[-6:] if len(messages) > 6 else messages
         last_user_query = trimmed_messages[-1].get("content", "")
-        system_instruction = build_system_prompt(user_style_key)
+        system_instruction = build_system_prompt(user_style_key, user_query=last_user_query)
 
-        # 1. Try Gemini models with fallback
+        # 1. Tier 1: Try Groq with Smart Circuit Breaker
+        if self.groq_client:
+            models_to_try = self._get_ordered_groq_models()
+            groq_messages = [{"role": "system", "content": system_instruction}]
+            for m in trimmed_messages[:-1]:
+                role = "user" if m.get("role") == "user" else "assistant"
+                content = (m.get("content") or "").strip()
+                if content:
+                    clean_m_content = re.sub(r"<think>[\s\S]*?</think>", "", content)
+                    groq_messages.append({"role": role, "content": clean_m_content})
+            groq_messages.append({"role": "user", "content": last_user_query})
+
+            for model_name in models_to_try:
+                try:
+                    res = self.groq_client.chat.completions.create(
+                        model=model_name,
+                        messages=groq_messages,
+                        temperature=0.7,
+                        max_tokens=1500,
+                    )
+                    return sanitize_text(res.choices[0].message.content)
+                except Exception as e:
+                    if "429" in str(e) or "rate_limit" in str(e).lower() or "too many requests" in str(e).lower():
+                        self._mark_model_cooldown(model_name, seconds=25.0)
+                    else:
+                        logger.warning(f"Groq model {model_name} failed: {e}. Trying fallback...")
+                    continue
+
+        # 2. Tier 2: Try Gemini models with fallback
         if self.gemini_key and genai is not None:
             gemini_models_to_try = list(dict.fromkeys([
                 self.gemini_model_name,
@@ -212,36 +240,7 @@ class LLMProvider:
                     logger.warning(f"Gemini model {g_model_name} failed: {e}. Trying fallback...")
                     continue
 
-        # 2. Try Groq with Smart Circuit Breaker
-        if self.groq_client:
-            models_to_try = self._get_ordered_groq_models()
-            groq_messages = [{"role": "system", "content": system_instruction}]
-            for m in trimmed_messages[:-1]:
-                role = "user" if m.get("role") == "user" else "assistant"
-                content = (m.get("content") or "").strip()
-                if content:
-                    clean_m_content = re.sub(r"<think>[\s\S]*?</think>", "", content)
-                    groq_messages.append({"role": role, "content": clean_m_content})
-            groq_messages.append({"role": "user", "content": last_user_query})
-
-            for model_name in models_to_try:
-                try:
-                    res = self.groq_client.chat.completions.create(
-                        model=model_name,
-                        messages=groq_messages,
-                        temperature=0.7,
-                        max_tokens=1500,
-                    )
-                    return sanitize_text(res.choices[0].message.content)
-                except Exception as e:
-                    # If 429 or rate limit, put model on cooldown and switch in 0.05s
-                    if "429" in str(e) or "rate_limit" in str(e).lower() or "too many requests" in str(e).lower():
-                        self._mark_model_cooldown(model_name, seconds=25.0)
-                    else:
-                        logger.warning(f"Groq model {model_name} failed: {e}. Trying fallback...")
-                    continue
-
-        # If completely unavailable, return a friendly server busy response
+        # 3. Tier 3: Friendly system fallback
         return (
             "Dạ xin lỗi bạn! Hiện tại kết nối AI đang bị gián đoạn hoặc quá tải trong giây lát. 🙏\n\n"
             "Bạn vui lòng **thử gửi lại tin nhắn sau vài giây**, hoặc liên hệ trực tiếp với anh Khoa qua:\n"
@@ -256,46 +255,16 @@ class LLMProvider:
         messages: List[Dict[str, str]],
         user_style_key: str = "trung_tinh",
     ) -> Generator[str, None, None]:
-        """Internal generator pulling raw stream chunks from LLMs with instant smart failover."""
+        """Internal generator pulling raw stream chunks with 3-tier multi-provider failover."""
         if not messages:
             yield "Xin chào! Tôi có thể giúp gì cho bạn?"
             return
 
         trimmed_messages = messages[-6:] if len(messages) > 6 else messages
         last_user_query = trimmed_messages[-1].get("content", "")
-        system_instruction = build_system_prompt(user_style_key)
+        system_instruction = build_system_prompt(user_style_key, user_query=last_user_query)
 
-        # 1. Stream with Gemini models with fallback
-        if self.gemini_key and genai is not None:
-            gemini_models_to_try = list(dict.fromkeys([
-                self.gemini_model_name,
-                "gemini-2.0-flash",
-                "gemini-1.5-flash",
-                "gemini-1.5-flash-8b",
-                "gemini-1.5-pro",
-            ]))
-            formatted_history = _format_gemini_history(trimmed_messages[:-1])
-
-            for g_model_name in gemini_models_to_try:
-                try:
-                    model = genai.GenerativeModel(
-                        model_name=g_model_name,
-                        system_instruction=system_instruction,
-                    )
-                    chat = model.start_chat(history=formatted_history)
-                    response = chat.send_message(last_user_query, stream=True)
-                    has_chunks = False
-                    for chunk in response:
-                        if chunk.text:
-                            has_chunks = True
-                            yield chunk.text
-                    if has_chunks:
-                        return
-                except Exception as e:
-                    logger.warning(f"Gemini stream model {g_model_name} failed: {e}. Trying fallback...")
-                    continue
-
-        # 2. Stream with Groq using Smart Circuit Breaker
+        # 1. Tier 1: Stream with Groq using Smart Circuit Breaker
         if self.groq_client:
             models_to_try = self._get_ordered_groq_models()
             groq_messages = [{"role": "system", "content": system_instruction}]
@@ -331,7 +300,37 @@ class LLMProvider:
                         logger.warning(f"Groq stream model {model_name} failed: {e}. Trying fallback...")
                     continue
 
-        # Fallback text
+        # 2. Tier 2: Stream with Gemini models with fallback
+        if self.gemini_key and genai is not None:
+            gemini_models_to_try = list(dict.fromkeys([
+                self.gemini_model_name,
+                "gemini-2.0-flash",
+                "gemini-1.5-flash",
+                "gemini-1.5-flash-8b",
+                "gemini-1.5-pro",
+            ]))
+            formatted_history = _format_gemini_history(trimmed_messages[:-1])
+
+            for g_model_name in gemini_models_to_try:
+                try:
+                    model = genai.GenerativeModel(
+                        model_name=g_model_name,
+                        system_instruction=system_instruction,
+                    )
+                    chat = model.start_chat(history=formatted_history)
+                    response = chat.send_message(last_user_query, stream=True)
+                    has_chunks = False
+                    for chunk in response:
+                        if chunk.text:
+                            has_chunks = True
+                            yield chunk.text
+                    if has_chunks:
+                        return
+                except Exception as e:
+                    logger.warning(f"Gemini stream model {g_model_name} failed: {e}. Trying fallback...")
+                    continue
+
+        # 3. Tier 3: Fallback simulated stream
         reply = self.generate_response(messages, user_style_key)
         for word in reply.split(" "):
             yield word + " "

@@ -1,12 +1,13 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from app.config import settings
 from app.database import get_live_portfolio_data
 from app.security import SAFE_SECURITY_INSTRUCTION
 from app.style_analyzer import style_analyzer
+from app.vector_engine import vector_rag_engine
 
 
-def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
-    """Builds a 100% dynamic, database-driven system prompt with zero hardcoded values."""
+def build_system_prompt(user_style_key: str = "trung_tinh", user_query: str = "") -> str:
+    """Builds a dynamic, database-driven system prompt enriched with RAG semantic context."""
     data = get_live_portfolio_data(force_refresh=True)
     profile = data.get("profile", {})
     experiences = data.get("experiences", [])
@@ -19,12 +20,19 @@ def build_system_prompt(user_style_key: str = "trung_tinh") -> str:
 
     style_instruction = style_analyzer.get_style_directive(user_style_key)
 
+    # Hybrid RAG Context
+    rag_context = vector_rag_engine.retrieve_relevant_context(user_query, top_k=3) if user_query else ""
+
     prompt_parts = [
         "Bạn là \"NQK AI Assistant\" - Trợ lý thông minh đại diện cho kỹ sư Nguyễn Quốc Khoa.",
         "\n" + SAFE_SECURITY_INSTRUCTION,
         f"\n[HƯỚNG DẪN THÍCH ỨNG PHONG CÁCH]:\n{style_instruction}",
-        "\n[KHO DỮ LIỆU THỰC TẾ DUY NHẤT TỪ CƠ SỞ DỮ LIỆU]:"
     ]
+
+    if rag_context:
+        prompt_parts.append(rag_context)
+
+    prompt_parts.append("\n[KHO DỮ LIỆU THỰC TẾ DUY NHẤT TỪ CƠ SỞ DỮ LIỆU]:")
 
     # 1. Profile & Education
     prompt_parts.append("\n=== 1. THÔNG TIN HỒ SƠ & LIÊN HỆ (Bảng profiles) ===")

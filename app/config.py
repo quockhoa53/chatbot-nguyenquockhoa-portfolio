@@ -15,7 +15,12 @@ class Settings:
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
     
     _raw_groq_model = os.getenv("GROQ_MODEL", "").strip()
-    GROQ_MODEL: str = _raw_groq_model if (_raw_groq_model and "llama" not in _raw_groq_model and "mixtral" not in _raw_groq_model and "gemma" not in _raw_groq_model) else "openai/gpt-oss-120b"
+    GROQ_MODEL: str = _raw_groq_model if (_raw_groq_model and "llama" not in _raw_groq_model and "mixtral" not in _raw_groq_model and "gemma" not in _raw_groq_model) else "llama-3.3-70b-versatile"
+
+    # Additional LLM Fallback Providers
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "").strip()
+    MISTRAL_API_KEY: str = os.getenv("MISTRAL_API_KEY", "").strip()
 
     # Database Settings (Loaded strictly from Environment Variables)
     DB_HOST: str = os.getenv("DB_HOST", "").strip()
