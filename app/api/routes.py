@@ -308,12 +308,22 @@ async def chat_stream_endpoint(request: Request, payload: ChatRequestPayload, ba
     def event_generator():
         full_response = []
         for chunk in llm_provider.stream_response(messages_history, session.user_style, guest_name=session.guest_name):
-            full_response.append(chunk)
-            payload_data = json.dumps({"content": chunk}, ensure_ascii=False)
-            yield f"data: {payload_data}\n\n"
+            if chunk:
+                full_response.append(chunk)
+                payload_data = json.dumps({"content": chunk}, ensure_ascii=False)
+                yield f"data: {payload_data}\n\n"
         
+        full_reply = "".join(full_response).strip()
+        # Fallback if streaming produced empty or only filtered thinking tokens
+        if not full_reply:
+            fallback = llm_provider.generate_response(messages_history, session.user_style, guest_name=session.guest_name)
+            if not fallback or not fallback.strip():
+                fallback = "Dạ, tôi đã nhận được câu hỏi của bạn. Bạn vui lòng cho tôi biết thêm chi tiết để hỗ trợ tốt nhất nhé! ✨"
+            full_reply = fallback
+            payload_data = json.dumps({"content": full_reply}, ensure_ascii=False)
+            yield f"data: {payload_data}\n\n"
+
         # Save complete assistant reply
-        full_reply = "".join(full_response)
         session.add_message("assistant", full_reply)
 
         # Asynchronously persist conversation to PostgreSQL as JSONB via dedicated daemon thread
