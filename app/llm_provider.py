@@ -178,14 +178,16 @@ class LLMProvider:
         self,
         messages: List[Dict[str, str]],
         user_style_key: str = "trung_tinh",
+        guest_name: Optional[str] = None,
     ) -> str:
-        """Generates a complete response through the LLM prompt with zero-delay failover."""
+        """Generates a complete response through the LLM prompt with zero-delay failover and guest personalization."""
         if not messages:
-            return "Xin chào! Tôi là NQK AI Assistant. Tôi có thể hỗ trợ gì cho bạn về thông tin và năng lực của Nguyễn Quốc Khoa?"
+            greeting = f"Xin chào bạn {guest_name}! " if guest_name else "Xin chào! "
+            return f"{greeting}Tôi là NQK AI Assistant. Tôi có thể hỗ trợ gì cho bạn về thông tin và năng lực của Nguyễn Quốc Khoa?"
 
         trimmed_messages = messages[-6:] if len(messages) > 6 else messages
         last_user_query = trimmed_messages[-1].get("content", "")
-        system_instruction = build_system_prompt(user_style_key, user_query=last_user_query)
+        system_instruction = build_system_prompt(user_style_key, user_query=last_user_query, guest_name=guest_name)
 
         # 1. Tier 1: Try Groq with Smart Circuit Breaker
         if self.groq_client:
@@ -293,15 +295,17 @@ class LLMProvider:
         self,
         messages: List[Dict[str, str]],
         user_style_key: str = "trung_tinh",
+        guest_name: Optional[str] = None,
     ) -> Generator[str, None, None]:
         """Internal generator pulling raw stream chunks with 3-tier multi-provider failover."""
         if not messages:
-            yield "Xin chào! Tôi có thể giúp gì cho bạn?"
+            greeting = f"Xin chào bạn {guest_name}! " if guest_name else "Xin chào! "
+            yield f"{greeting}Tôi có thể giúp gì cho bạn?"
             return
 
         trimmed_messages = messages[-6:] if len(messages) > 6 else messages
         last_user_query = trimmed_messages[-1].get("content", "")
-        system_instruction = build_system_prompt(user_style_key, user_query=last_user_query)
+        system_instruction = build_system_prompt(user_style_key, user_query=last_user_query, guest_name=guest_name)
 
         # 1. Tier 1: Stream with Groq using Smart Circuit Breaker
         if self.groq_client:
@@ -370,7 +374,7 @@ class LLMProvider:
                     continue
 
         # 3. Tier 3: Fallback simulated stream
-        reply = self.generate_response(messages, user_style_key)
+        reply = self.generate_response(messages, user_style_key, guest_name=guest_name)
         for word in reply.split(" "):
             yield word + " "
             time.sleep(0.015)
@@ -379,9 +383,10 @@ class LLMProvider:
         self,
         messages: List[Dict[str, str]],
         user_style_key: str = "trung_tinh",
+        guest_name: Optional[str] = None,
     ) -> Generator[str, None, None]:
         """Streams response tokens with real-time thought-process filtering and security sanitization."""
-        raw_stream = self._raw_stream_response(messages, user_style_key)
+        raw_stream = self._raw_stream_response(messages, user_style_key, guest_name=guest_name)
         for token in _filter_thinking_stream(raw_stream):
             yield sanitize_text(token)
 

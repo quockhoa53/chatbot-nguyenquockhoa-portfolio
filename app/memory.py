@@ -12,6 +12,7 @@ class ChatTurn(BaseModel):
 
 class ConversationSession(BaseModel):
     session_id: str
+    guest_name: Optional[str] = None
     messages: List[ChatTurn] = Field(default_factory=list)
     user_style: str = "trung_tinh"  # Detected user personality/style
     style_description: str = "Tự nhiên, thân thiện và chuyên nghiệp"
@@ -33,15 +34,17 @@ class SessionManager:
         self.sessions: Dict[str, ConversationSession] = {}
         self.ttl_seconds = ttl_hours * 3600
 
-    def get_or_create_session(self, session_id: Optional[str] = None) -> ConversationSession:
+    def get_or_create_session(self, session_id: Optional[str] = None, guest_name: Optional[str] = None) -> ConversationSession:
         self._cleanup_expired_sessions()
 
         if not session_id or session_id not in self.sessions:
             new_id = session_id or str(uuid.uuid4())
-            self.sessions[new_id] = ConversationSession(session_id=new_id)
+            self.sessions[new_id] = ConversationSession(session_id=new_id, guest_name=guest_name)
             return self.sessions[new_id]
 
         session = self.sessions[session_id]
+        if guest_name and not session.guest_name:
+            session.guest_name = guest_name
         session.last_activity = time.time()
         return session
 

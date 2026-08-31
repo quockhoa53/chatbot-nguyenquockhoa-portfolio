@@ -6,8 +6,8 @@ from app.style_analyzer import style_analyzer
 from app.vector_engine import vector_rag_engine
 
 
-def build_system_prompt(user_style_key: str = "trung_tinh", user_query: str = "") -> str:
-    """Builds a dynamic, database-driven system prompt enriched with RAG semantic context."""
+def build_system_prompt(user_style_key: str = "trung_tinh", user_query: str = "", guest_name: Optional[str] = None) -> str:
+    """Builds a dynamic, database-driven system prompt enriched with RAG semantic context and guest personalization."""
     data = get_live_portfolio_data(force_refresh=True)
     profile = data.get("profile", {})
     experiences = data.get("experiences", [])
@@ -28,6 +28,14 @@ def build_system_prompt(user_style_key: str = "trung_tinh", user_query: str = ""
         "\n" + SAFE_SECURITY_INSTRUCTION,
         f"\n[HƯỚNG DẪN THÍCH ỨNG PHONG CÁCH]:\n{style_instruction}",
     ]
+
+    if guest_name and guest_name.strip():
+        clean_guest = guest_name.strip()
+        prompt_parts.append(
+            f"\n[THÔNG TIN KHÁCH TRUY CẬP]:\n"
+            f"Người dùng đang trò chuyện có tên là \"{clean_guest}\". "
+            f"Hãy xưng hô lịch sự, thân thiện và gọi tên bạn \"{clean_guest}\" một cách tự nhiên, tinh tế (ví dụ: 'Chào bạn {clean_guest}', 'Gửi {clean_guest}')."
+        )
 
     if rag_context:
         prompt_parts.append(rag_context)

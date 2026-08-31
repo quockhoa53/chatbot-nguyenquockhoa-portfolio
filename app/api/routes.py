@@ -34,6 +34,8 @@ class ChatRequestPayload(BaseModel):
     session_id: str
     message: Optional[str] = None
     messages: Optional[List[IncomingChatMessage]] = None
+    guest_name: Optional[str] = None
+    guest_token: Optional[str] = None
 
 
 class ChatResponsePayload(BaseModel):
@@ -42,6 +44,7 @@ class ChatResponsePayload(BaseModel):
     user_style: str
     style_description: str
     model: str
+    guest_name: Optional[str] = None
 
 
 class TTSRequestPayload(BaseModel):
@@ -183,7 +186,7 @@ async def chat_endpoint(request: Request, payload: ChatRequestPayload, backgroun
     # 1. Security: IP Rate Limiting Guard (Max 20 chat requests/min per IP)
     rate_limiter.check_rate_limit(request, endpoint_type="chat", max_requests=20, window_seconds=60)
 
-    session = session_manager.get_or_create_session(payload.session_id)
+    session = session_manager.get_or_create_session(payload.session_id, guest_name=payload.guest_name)
 
     # 2. Security: Validate user message format and maximum length (max 1000 chars)
     raw_content = ""
@@ -205,6 +208,7 @@ async def chat_endpoint(request: Request, payload: ChatRequestPayload, backgroun
             user_style=session.user_style,
             style_description=session.style_description,
             model="nqk-security-guard",
+            guest_name=session.guest_name,
         )
 
     # 4. Append to session history
@@ -218,10 +222,11 @@ async def chat_endpoint(request: Request, payload: ChatRequestPayload, backgroun
         messages_history,
     )
 
-    # 6. Generate response from LLM using the session's detected style
+    # 6. Generate response from LLM using the session's detected style and guest name
     reply = llm_provider.generate_response(
         messages=messages_history,
         user_style_key=session.user_style,
+        guest_name=session.guest_name,
     )
 
     # 7. Append assistant reply to session
@@ -248,6 +253,7 @@ async def chat_endpoint(request: Request, payload: ChatRequestPayload, backgroun
         user_style=session.user_style,
         style_description=session.style_description,
         model=active_model,
+        guest_name=session.guest_name,
     )
 
 
@@ -256,7 +262,7 @@ async def chat_stream_endpoint(request: Request, payload: ChatRequestPayload, ba
     # 1. Security: IP Rate Limiting Guard (Max 20 chat requests/min per IP)
     rate_limiter.check_rate_limit(request, endpoint_type="chat", max_requests=20, window_seconds=60)
 
-    session = session_manager.get_or_create_session(payload.session_id)
+    session = session_manager.get_or_create_session(payload.session_id, guest_name=payload.guest_name)
 
     # 2. Security: Validate user message format and maximum length (max 1000 chars)
     raw_content = ""
@@ -301,10 +307,10 @@ async def chat_stream_endpoint(request: Request, payload: ChatRequestPayload, ba
 
     def event_generator():
         full_response = []
-        for chunk in llm_provider.stream_response(messages_history, session.user_style):
+        for chunk in llm_provider.stream_response(messages_history, session.user_style, guest_name=session.guest_name):
             full_response.append(chunk)
-            payload = json.dumps({"content": chunk}, ensure_ascii=False)
-            yield f"data: {payload}\n\n"
+            payload_data = json.dumps({"content": chunk}, ensure_ascii=False)
+            yield f"data: {payload_data}\n\n"
         
         # Save complete assistant reply
         full_reply = "".join(full_response)
@@ -338,6 +344,27 @@ async def chat_stream_endpoint(request: Request, payload: ChatRequestPayload, ba
             "X-User-Style": session.user_style,
         },
     )
+
+
+@router.get("/chat/history/{session_id}", dependencies=[Depends(verify_internal_api_key)])
+def get_chat_history(session_id: str):
+    """Retrieves session messages from active memory cache or database."""
+    if session_id in session_manager.sessions:
+        session = session_manager.sessions[session_id]
+        return {
+            "status": "success",
+            "session_id": session.session_id,
+            "guest_name": session.guest_name,
+            "user_style": session.user_style,
+            "messages": session.get_messages_dict(),
+        }
+    return {
+        "status": "success",
+        "session_id": session_id,
+        "guest_name": None,
+        "user_style": "trung_tinh",
+        "messages": [],
+    }
 
 
 @router.get("/session/{session_id}", dependencies=[Depends(verify_internal_api_key)])
