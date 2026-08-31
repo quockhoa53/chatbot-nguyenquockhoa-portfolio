@@ -240,7 +240,46 @@ class LLMProvider:
                     logger.warning(f"Gemini model {g_model_name} failed: {e}. Trying fallback...")
                     continue
 
-        # 3. Tier 3: Friendly system fallback
+        # 3. Tier 3: Emergency Fallback Providers (OpenRouter / DeepSeek / Mistral)
+        tier3_configs = []
+        if settings.OPENROUTER_API_KEY:
+            tier3_configs.append(("https://openrouter.ai/api/v1/chat/completions", settings.OPENROUTER_API_KEY, "deepseek/deepseek-chat"))
+            tier3_configs.append(("https://openrouter.ai/api/v1/chat/completions", settings.OPENROUTER_API_KEY, "mistralai/mistral-7b-instruct"))
+        if settings.DEEPSEEK_API_KEY:
+            tier3_configs.append(("https://api.deepseek.com/v1/chat/completions", settings.DEEPSEEK_API_KEY, "deepseek-chat"))
+        if settings.MISTRAL_API_KEY:
+            tier3_configs.append(("https://api.mistral.ai/v1/chat/completions", settings.MISTRAL_API_KEY, "mistral-small-latest"))
+
+        if tier3_configs:
+            payload_messages = [{"role": "system", "content": system_instruction}]
+            for m in trimmed_messages[:-1]:
+                role = "user" if m.get("role") == "user" else "assistant"
+                content = (m.get("content") or "").strip()
+                if content:
+                    payload_messages.append({"role": role, "content": re.sub(r"<think>[\s\S]*?</think>", "", content)})
+            payload_messages.append({"role": "user", "content": last_user_query})
+
+            try:
+                import httpx
+                for url, api_key, model in tier3_configs:
+                    try:
+                        resp = httpx.post(
+                            url,
+                            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                            json={"model": model, "messages": payload_messages, "temperature": 0.7, "max_tokens": 1500},
+                            timeout=10.0,
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                            if content:
+                                return sanitize_text(content)
+                    except Exception as tier3_err:
+                        logger.warning(f"Tier 3 provider {url} ({model}) failed: {tier3_err}")
+            except Exception as import_err:
+                logger.warning(f"Failed to load httpx for Tier 3: {import_err}")
+
+        # 4. Final Friendly fallback message
         return (
             "Dạ xin lỗi bạn! Hiện tại kết nối AI đang bị gián đoạn hoặc quá tải trong giây lát. 🙏\n\n"
             "Bạn vui lòng **thử gửi lại tin nhắn sau vài giây**, hoặc liên hệ trực tiếp với anh Khoa qua:\n"
