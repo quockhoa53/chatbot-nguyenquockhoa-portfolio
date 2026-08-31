@@ -11,11 +11,11 @@ class Settings:
     # LLM Settings
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "groq").lower()
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "").strip()
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip()
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "").strip()
     
     _raw_groq_model = os.getenv("GROQ_MODEL", "").strip()
-    GROQ_MODEL: str = _raw_groq_model if (_raw_groq_model and "llama" not in _raw_groq_model and "mixtral" not in _raw_groq_model and "gemma" not in _raw_groq_model) else "llama-3.3-70b-versatile"
+    GROQ_MODEL: str = _raw_groq_model if (_raw_groq_model and "llama" not in _raw_groq_model and "mixtral" not in _raw_groq_model) else "qwen/qwen3.8-27b"
 
     # Additional LLM Fallback Providers
     DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "").strip()

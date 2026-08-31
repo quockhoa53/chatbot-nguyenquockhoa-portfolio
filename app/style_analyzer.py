@@ -101,11 +101,12 @@ class UserStyleAnalyzer:
         if settings.GEMINI_API_KEY and genai is not None:
             try:
                 genai.configure(api_key=settings.GEMINI_API_KEY)
+                g_model = settings.GEMINI_MODEL if ("1.5" not in settings.GEMINI_MODEL and "2.0" not in settings.GEMINI_MODEL) else "gemini-2.5-flash"
                 self.gemini_model = genai.GenerativeModel(
-                    model_name=settings.GEMINI_MODEL,
+                    model_name=g_model,
                     system_instruction=PERSONA_CLASSIFICATION_SYSTEM_PROMPT,
                 )
-                logger.info("[StyleAnalyzer] Initialized dedicated Gemini classifier model.")
+                logger.info(f"[StyleAnalyzer] Initialized dedicated Gemini classifier model: {g_model}.")
             except Exception as e:
                 logger.error(f"[StyleAnalyzer] Gemini init error: {e}")
 
@@ -182,7 +183,7 @@ class UserStyleAnalyzer:
 
         # 2. Try Groq classifier with zero retries to avoid wasting rate limits
         if self.groq_client:
-            for model_candidate in ["openai/gpt-oss-20b", "groq/compound-mini", "openai/gpt-oss-120b"]:
+            for model_candidate in ["qwen/qwen3.8-27b", "groq/compound", "openai/gpt-oss-120b"]:
                 try:
                     res = self.groq_client.chat.completions.create(
                         model=model_candidate,

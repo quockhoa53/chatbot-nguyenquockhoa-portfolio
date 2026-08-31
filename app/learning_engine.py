@@ -235,30 +235,35 @@ Quy tắc BẮT BUỘC (RẤT QUAN TRỌNG):
   }}
 ]
 Chỉ xuất JSON array hợp lệ."""
-            chat_completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": "You are a specialized JSON data analyzer. Always output valid JSON array."},
-                    {"role": "user", "content": prompt}
-                ],
-                model=settings.GROQ_MODEL,
-                temperature=0.2,
-                max_tokens=2000,
-            )
-            raw_content = chat_completion.choices[0].message.content.strip()
-            # Strip reasoning/thinking tags emitted by reasoning models (e.g. gpt-oss-20b)
-            clean_content = re.sub(r"<think>[\s\S]*?</think>", "", raw_content, flags=re.IGNORECASE).strip()
-            json_match = re.search(r"\[[\s\S]*\]", clean_content)
-            if json_match:
-                parsed = json.loads(json_match.group(0))
-                if isinstance(parsed, list):
-                    filtered = [
-                        item for item in parsed 
-                        if item.get("title") and item.get("title").lower() not in existing_titles
-                    ]
-                    if filtered:
-                        logger.info(f"🧠 [LLM Synthesizer] Successfully synthesized {len(filtered)} NEW facts from genuine knowledge gaps!")
-                        return filtered[:4]
-                    return []
+            for groq_m in [settings.GROQ_MODEL, "qwen/qwen3.8-27b", "groq/compound", "openai/gpt-oss-120b"]:
+                try:
+                    chat_completion = client.chat.completions.create(
+                        messages=[
+                            {"role": "system", "content": "You are a specialized JSON data analyzer. Always output valid JSON array."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        model=groq_m,
+                        temperature=0.2,
+                        max_tokens=2000,
+                    )
+                    raw_content = chat_completion.choices[0].message.content.strip()
+                    # Strip reasoning/thinking tags emitted by reasoning models
+                    clean_content = re.sub(r"<think>[\s\S]*?</think>", "", raw_content, flags=re.IGNORECASE).strip()
+                    json_match = re.search(r"\[[\s\S]*\]", clean_content)
+                    if json_match:
+                        parsed = json.loads(json_match.group(0))
+                        if isinstance(parsed, list):
+                            filtered = [
+                                item for item in parsed 
+                                if item.get("title") and item.get("title").lower() not in existing_titles
+                            ]
+                            if filtered:
+                                logger.info(f"🧠 [LLM Synthesizer] Successfully synthesized {len(filtered)} NEW facts from genuine knowledge gaps using {groq_m}!")
+                                return filtered[:4]
+                            return []
+                except Exception as m_err:
+                    logger.warning(f"Groq synthesis model {groq_m} failed: {m_err}")
+                    continue
     except Exception as e:
         logger.error(f"Groq dynamic fact synthesis error: {e}")
 
@@ -267,7 +272,6 @@ Chỉ xuất JSON array hợp lệ."""
         import google.generativeai as genai
         if settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel(settings.GEMINI_MODEL)
             prompt = f"""Bạn là AI phân tích dữ liệu Portfolio của kỹ sư Nguyễn Quốc Khoa.
 Dưới đây là các câu hỏi thực tế người dùng vừa hỏi AI:
 {queries_text}
@@ -281,16 +285,22 @@ Hãy phân tích và tạo 2-3 Fact kiến thức JSON:
     "reason": "Khách hàng đã hỏi: '...'"
   }}
 ]"""
-            resp = model.generate_content(prompt)
-            raw_text = resp.text.strip()
-            json_match = re.search(r"\[[\s\S]*\]", raw_text)
-            if json_match:
-                parsed = json.loads(json_match.group(0))
-                if isinstance(parsed, list):
-                    return [
-                        item for item in parsed 
-                        if item.get("title") and item.get("title").lower() not in existing_titles
-                    ][:4]
+            for gemini_m in [settings.GEMINI_MODEL, "gemini-2.5-flash", "gemini-3.6-flash", "gemini-flash-latest"]:
+                try:
+                    model = genai.GenerativeModel(gemini_m)
+                    resp = model.generate_content(prompt)
+                    raw_text = resp.text.strip()
+                    json_match = re.search(r"\[[\s\S]*\]", raw_text)
+                    if json_match:
+                        parsed = json.loads(json_match.group(0))
+                        if isinstance(parsed, list):
+                            return [
+                                item for item in parsed 
+                                if item.get("title") and item.get("title").lower() not in existing_titles
+                            ][:4]
+                except Exception as gm_err:
+                    logger.warning(f"Gemini synthesis model {gemini_m} failed: {gm_err}")
+                    continue
     except Exception as e:
         logger.error(f"Gemini dynamic fact synthesis error: {e}")
 

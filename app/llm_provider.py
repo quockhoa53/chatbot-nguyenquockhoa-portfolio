@@ -156,11 +156,11 @@ class LLMProvider:
         """
         all_models = list(dict.fromkeys([
             self.groq_model_name,
-            "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant",
-            "mixtral-8x7b-32768",
+            "qwen/qwen3.8-27b",
+            "groq/compound",
             "qwen/qwen3.6-27b",
             "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
         ]))
 
         now = time.time()
@@ -221,10 +221,11 @@ class LLMProvider:
         if self.gemini_key and genai is not None:
             gemini_models_to_try = list(dict.fromkeys([
                 self.gemini_model_name,
-                "gemini-2.0-flash",
-                "gemini-1.5-flash",
-                "gemini-1.5-flash-8b",
-                "gemini-1.5-pro",
+                "gemini-2.5-flash",
+                "gemini-3.6-flash",
+                "gemini-flash-latest",
+                "gemini-2.5-pro",
+                "gemini-pro-latest",
             ]))
             formatted_history = _format_gemini_history(trimmed_messages[:-1])
 
@@ -347,10 +348,11 @@ class LLMProvider:
         if self.gemini_key and genai is not None:
             gemini_models_to_try = list(dict.fromkeys([
                 self.gemini_model_name,
-                "gemini-2.0-flash",
-                "gemini-1.5-flash",
-                "gemini-1.5-flash-8b",
-                "gemini-1.5-pro",
+                "gemini-2.5-flash",
+                "gemini-3.6-flash",
+                "gemini-flash-latest",
+                "gemini-2.5-pro",
+                "gemini-pro-latest",
             ]))
             formatted_history = _format_gemini_history(trimmed_messages[:-1])
 
