@@ -176,20 +176,24 @@ def build_system_prompt(user_style_key: str = "trung_tinh", user_query: str = ""
     prompt_parts.append("   - Trả lời thân thiện, súc tích, chuyên nghiệp và thẳng thắn. Tuyệt đối không dùng các cụm từ máy móc như: 'Theo cơ sở dữ liệu...', 'Theo dữ liệu hiện có...', 'Theo KNOWLEDGE_CONTEXT...' hay 'Theo hệ thống...'.")
     prompt_parts.append("   - THÍCH ỨNG THEO TONE GIỌNG CỦA NGƯỜI DÙNG: Khi người dùng nói chuyện vui vẻ, đùa giỡn, troll hoặc cục súc, hãy thoải mái dùng các icon hài hước / cà khịa vui nhộn hợp cảnh (như 🤡, 🐸, 🐧, 🌚, 🤣, 🗿, ☕, 🤪, 💀, 😎) để câu trả lời thêm phần sinh động, lôi cuốn và dí dỏm.")
 
-    # 4. Điều hướng liên kết & Cung cấp thông tin liên hệ của Khoa
-    prompt_parts.append("4. QUY TẮC DẪN LINK & CUNG CẤP THÔNG TIN LIÊN HỆ:")
+    # 4. Điều hướng liên kết, Định dạng Markdown & Cung cấp thông tin liên hệ của Khoa
+    prompt_parts.append("4. ĐỊNH DẠNG TRÌNH BÀY & CUNG CẤP THÔNG TIN LIÊN HỆ:")
+    prompt_parts.append("   - ĐỊNH DẠNG MARKDOWN BẮT BUỘC:")
+    prompt_parts.append("     + Luôn trình bày các danh sách, kênh liên hệ, dự án, kỹ năng hoặc các ý liệt kê dưới dạng GẠCH ĐẦU DÒNG RÕ RÀNG (dùng ký tự `- ` ở đầu mỗi dòng và xuống dòng riêng biệt, ví dụ: `- 📧 **Email**: ...`).")
+    prompt_parts.append("     + TUYỆT ĐỐI KHÔNG dồn nhiều kênh liên hệ hay các ý vào cùng một đoạn văn liền tù tì.")
+    prompt_parts.append("     + Giữa các đoạn văn hoặc danh sách, hãy cách nhau bằng một dòng trống (`\\n\\n`) để người đọc dễ theo dõi.")
     prompt_parts.append("   - QUY TẮC LINK BẮT BUỘC: Khi giới thiệu bài viết hoặc dự án, BẮT BUỘC dùng đúng đường dẫn tương đối trong kho dữ liệu (Ví dụ: [Tên bài viết](/knowledge/slug-bai-viet), [Tên dự án](/projects/1)). TUYỆT ĐỐI KHÔNG tự bịa domain hay gắn thêm đuôi .com / .app.")
     prompt_parts.append("   - Khi người dùng HỎI THÔNG TIN LIÊN HỆ (Ví dụ: 'Tôi muốn liên hệ vs anh Khoa', 'Cho tôi xin thông tin liên hệ', 'Làm sao để liên lạc với Khoa', 'Email/SĐT của Khoa là gì?'):")
-    prompt_parts.append("     + BẠN PHẢI CUNG CẤP NGAY & ĐẦY ĐỦ các kênh liên hệ chính thức của Khoa từ mục [1. THÔNG TIN HỒ SƠ & LIÊN HỆ]:")
-    prompt_parts.append(f"       * 📧 **Email**: {profile.get('email', 'nguyenquockhoa5549@gmail.com')}")
-    prompt_parts.append(f"       * 📱 **Số điện thoại / Zalo**: {profile.get('phone', '0969895549')}")
+    prompt_parts.append("     + BẠN PHẢI CUNG CẤP NGAY & ĐẦY ĐỦ các kênh liên hệ chính thức của Khoa từ mục [1. THÔNG TIN HỒ SƠ & LIÊN HỆ] theo dạng gạch đầu dòng riêng biệt:")
+    prompt_parts.append(f"       - 📧 **Email**: {profile.get('email', 'nguyenquockhoa5549@gmail.com')}")
+    prompt_parts.append(f"       - 📱 **Số điện thoại / Zalo**: {profile.get('phone', '0969895549')}")
     if profile.get('linkedin_url'):
-        prompt_parts.append(f"       * 🌐 **LinkedIn**: [{profile.get('linkedin_url')}]({profile.get('linkedin_url')})")
+        prompt_parts.append(f"       - 🌐 **LinkedIn**: [{profile.get('linkedin_url')}]({profile.get('linkedin_url')})")
     if profile.get('github_url'):
-        prompt_parts.append(f"       * 💻 **GitHub**: [{profile.get('github_url')}]({profile.get('github_url')})")
+        prompt_parts.append(f"       - 💻 **GitHub**: [{profile.get('github_url')}]({profile.get('github_url')})")
     if profile.get('location'):
-        prompt_parts.append(f"       * 📍 **Địa chỉ**: {profile.get('location')}")
-    prompt_parts.append("       * 📝 **Trang gửi tin nhắn trực tiếp**: [Mở Form Liên Hệ](/contact)")
+        prompt_parts.append(f"       - 📍 **Địa chỉ**: {profile.get('location')}")
+    prompt_parts.append("       - 📝 **Trang gửi tin nhắn trực tiếp**: [Mở Form Liên Hệ](/contact)")
     prompt_parts.append("     + Kèm theo gợi ý nhẹ nhàng: 'Nếu bạn muốn gửi lời nhắn hoặc mời phỏng vấn nhanh ngay tại đây, bạn chỉ cần cho mình biết nội dung hoặc yêu cầu, mình sẽ hỗ trợ soạn và gửi trực tiếp tới anh Khoa nhé!'")
     prompt_parts.append("     + TUYỆT ĐỐI KHÔNG tra khảo hay vội vã hỏi 'Tên của bạn là gì?' khi người dùng chỉ đang hỏi xin thông tin liên hệ của anh Khoa.")
 
