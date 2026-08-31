@@ -29,13 +29,16 @@ def build_system_prompt(user_style_key: str = "trung_tinh", user_query: str = ""
         f"\n[HƯỚNG DẪN THÍCH ỨNG PHONG CÁCH]:\n{style_instruction}",
     ]
 
-    if guest_name and guest_name.strip():
-        clean_guest = guest_name.strip()
-        prompt_parts.append(
-            f"\n[THÔNG TIN KHÁCH TRUY CẬP]:\n"
-            f"Người dùng đang trò chuyện có tên là \"{clean_guest}\". "
-            f"Hãy xưng hô lịch sự, thân thiện và gọi tên bạn \"{clean_guest}\" một cách tự nhiên, tinh tế (ví dụ: 'Chào bạn {clean_guest}', 'Gửi {clean_guest}')."
-        )
+    if guest_name and str(guest_name).strip():
+        # Strict sanitization: strip newlines, control characters, prompt delimiters and limit to 40 chars
+        import re
+        clean_guest = re.sub(r"[\r\n\t\"'\\<>{}[\]`]", "", str(guest_name)).strip()[:40]
+        if clean_guest:
+            prompt_parts.append(
+                f"\n[THÔNG TIN KHÁCH TRUY CẬP]:\n"
+                f"Người dùng đang trò chuyện có tên là \"{clean_guest}\". "
+                f"Hãy xưng hô lịch sự, thân thiện và gọi tên bạn \"{clean_guest}\" một cách tự nhiên, tinh tế (ví dụ: 'Chào bạn {clean_guest}', 'Gửi {clean_guest}')."
+            )
 
     if rag_context:
         prompt_parts.append(rag_context)
