@@ -52,24 +52,46 @@ class IPRateLimiter:
         self,
         request: Request,
         endpoint_type: str = "chat",
-        max_requests: int = 20,
+        max_requests: int = 30,
         window_seconds: int = 60,
     ):
         """Validates if client IP exceeded allowed rate limit. Raises HTTP 429 if exceeded."""
+        from app.config import settings
+
+        received_key = request.headers.get("X-Internal-API-Key")
+        is_internal_gateway = bool(
+            settings.INTERNAL_API_SECRET
+            and received_key
+            and received_key.strip() == settings.INTERNAL_API_SECRET
+        )
+
+        # If authenticated gateway request without forwarded client IP, bypass rate limit
+        forwarded_ip = request.headers.get("x-forwarded-for") or request.headers.get("cf-connecting-ip")
+        if is_internal_gateway and not forwarded_ip:
+            return
+
+        client_ip = (
+            forwarded_ip.split(",")[0].strip()
+            if (is_internal_gateway and forwarded_ip)
+            else self.get_client_ip(request)
+        )
+
         self._periodic_cleanup()
 
-        client_ip = self.get_client_ip(request)
         now = time.time()
         bucket = self.chat_requests if endpoint_type == "chat" else self.tts_requests
 
         # Filter out timestamps older than window
         valid_timestamps = [t for t in bucket[client_ip] if (now - t) < window_seconds]
 
-        if len(valid_timestamps) >= max_requests:
+        # Use generous limit (100 req/min) for forwarded users from trusted gateway
+        effective_limit = 100 if is_internal_gateway else max_requests
+
+        if len(valid_timestamps) >= effective_limit:
             oldest_timestamp = valid_timestamps[0]
             retry_after = int(window_seconds - (now - oldest_timestamp)) + 1
             logger.warning(
-                f"🚨 [Rate Limit Exceeded] IP={client_ip} exceeded {max_requests} reqs/min for '{endpoint_type}'."
+                f"🚨 [Rate Limit Exceeded] IP={client_ip} exceeded {effective_limit} reqs/min for '{endpoint_type}'."
             )
             raise HTTPException(
                 status_code=429,
